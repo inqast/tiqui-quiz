@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { loadParser, loadStarter } from '../helpers/load-parser.js';
+import { parseDocument } from '../../src/parser.js';
+import { loadStarter } from '../helpers/load-starter.js';
 
 const fixtureUrl = new URL('../fixtures/all-question-types.md', import.meta.url);
 const exampleUrl = new URL('../../lesson-example.md', import.meta.url);
@@ -18,7 +19,6 @@ ${body}
 `;
 
 test('parses every supported question type', async () => {
-  const parseDocument = await loadParser();
   const source = await readFile(fixtureUrl, 'utf8');
   const result = parseDocument(source);
 
@@ -30,7 +30,6 @@ test('parses every supported question type', async () => {
 });
 
 test('keeps option-specific feedback and accepted input answers', async () => {
-  const parseDocument = await loadParser();
   const source = await readFile(fixtureUrl, 'utf8');
   const { course } = parseDocument(source);
   const [choice, , input] = course.lessons[0].questions;
@@ -40,7 +39,6 @@ test('keeps option-specific feedback and accepted input answers', async () => {
 });
 
 test('rejects a choice without exactly one correct option', async () => {
-  const parseDocument = await loadParser();
   const result = parseDocument(`# Курс
 
 ## Тема
@@ -57,7 +55,6 @@ test('rejects a choice without exactly one correct option', async () => {
 });
 
 test('reports the source line for an unknown question type', async () => {
-  const parseDocument = await loadParser();
   const result = parseDocument(`# Курс
 
 ## Тема
@@ -71,7 +68,6 @@ test('reports the source line for an unknown question type', async () => {
 });
 
 test('accepts CRLF documents and boolean aliases', async () => {
-  const parseDocument = await loadParser();
   const result = parseDocument('# Курс\r\n\r\n## Тема\r\n\r\n### Правда/ложь\r\n\r\nУтверждение.\r\n\r\nОтвет: да\r\n');
 
   assert.deepEqual(Array.from(result.errors), []);
@@ -79,7 +75,6 @@ test('accepts CRLF documents and boolean aliases', async () => {
 });
 
 test('preserves Russian letters with diacritics in generated IDs', async () => {
-  const parseDocument = await loadParser();
   const result = parseDocument(`# Демонстрационный квиз
 
 ## Новый материал
@@ -96,7 +91,6 @@ test('preserves Russian letters with diacritics in generated IDs', async () => {
 });
 
 test('the built-in starter remains valid and demonstrates all types', async () => {
-  const parseDocument = await loadParser();
   const source = await loadStarter();
   const result = parseDocument(source);
 
@@ -109,7 +103,6 @@ test('the built-in starter remains valid and demonstrates all types', async () =
 });
 
 test('the distributed lesson example remains valid', async () => {
-  const parseDocument = await loadParser();
   const source = await readFile(exampleUrl, 'utf8');
   const result = parseDocument(source);
 
@@ -117,7 +110,6 @@ test('the distributed lesson example remains valid', async () => {
 });
 
 test('validates choice edge cases', async t => {
-  const parseDocument = await loadParser();
   const cases = [
     {
       name: 'rejects multiple correct options',
@@ -161,7 +153,6 @@ test('validates choice edge cases', async t => {
 });
 
 test('validates true-or-false edge cases', async t => {
-  const parseDocument = await loadParser();
 
   for (const [value, expected] of [['ПРАВДА', true], ['да', true], ['TRUE', true], ['ЛОЖЬ', false], ['нет', false], ['FALSE', false]]) {
     await t.test(`accepts ${value}`, () => {
@@ -185,7 +176,6 @@ test('validates true-or-false edge cases', async t => {
 });
 
 test('validates input edge cases', async t => {
-  const parseDocument = await loadParser();
 
   await t.test('rejects a missing answer list', () => {
     const result = parseDocument(questionDocument('Ввод', 'Подсказка: Без ответа'));
@@ -205,7 +195,6 @@ test('validates input edge cases', async t => {
 });
 
 test('validates order edge cases', async t => {
-  const parseDocument = await loadParser();
 
   for (const [name, body, error] of [
     ['no items', 'Объяснение: Пусто', /хотя бы два пункта/],
@@ -227,7 +216,6 @@ test('validates order edge cases', async t => {
 });
 
 test('validates matching-pair edge cases', async t => {
-  const parseDocument = await loadParser();
 
   for (const [name, body, error] of [
     ['no pairs', 'Объяснение: Пусто', /хотя бы две пары/],
@@ -255,7 +243,6 @@ test('validates matching-pair edge cases', async t => {
 });
 
 test('validates common question boundaries and preserves unsafe-looking text as data', async t => {
-  const parseDocument = await loadParser();
 
   await t.test('rejects a question without text', () => {
     const result = parseDocument(questionDocument('Ввод', 'Ответы: ответ', ''));

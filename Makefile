@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-node install-browser test check test-unit test-browser test-browser-ui
+.PHONY: help install install-node install-browser build check-build test check test-unit test-browser test-browser-ui
 
 help: ## Показать доступные команды
 	@awk 'BEGIN {FS = ":.*## "; printf "Tiqui Quiz\n\nИспользование:\n  make <цель>\n\nЦели:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -12,6 +12,12 @@ install-node: ## Установить npm-пакеты
 
 install-browser: ## Установить Chromium для Playwright
 	npm run test:install-browser
+
+build: ## Собрать автономный quiz.html из src/
+	npm run build
+
+check-build: ## Проверить актуальность собранного quiz.html
+	npm run check:build
 
 test: ## Запустить все тесты
 	npm test
