@@ -178,3 +178,5 @@ make test-browser-ui
 Workflow `.github/workflows/tests.yml` запускается при каждом push и pull request. Unit- и браузерные тесты выполняются независимыми jobs. Unit job также проверяет, что `quiz.html` пересобран после изменений в `src/`; при падении браузерных тестов GitHub сохраняет Playwright-артефакты на семь дней.
 
 После первого запуска рекомендуется сделать проверки `Unit tests` и `Browser tests` обязательными в настройках защиты основной ветки GitHub.
+
+Workflow `.github/workflows/deploy-pages.yml` запускается после успешного завершения `Tests` для ветки `main`. Он забирает именно проверенный commit, повторно проверяет актуальность сборки и публикует `quiz.html` как главную страницу GitHub Pages. Перед первым запуском выберите `GitHub Actions` в `Settings → Pages → Build and deployment → Source`.
