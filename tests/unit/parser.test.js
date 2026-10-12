@@ -90,6 +90,27 @@ test('preserves Russian letters with diacritics in generated IDs', async () => {
   assert.equal(result.course.lessons[0].id, 'новый-материал-1');
 });
 
+test('uses default icons when icon fields are empty', () => {
+  const result = parseDocument(`# Курс
+
+Иконка:
+
+## Тема
+
+Иконка:   
+
+### Ввод
+
+Введите ответ:
+
+Ответы: ответ
+`);
+
+  assert.deepEqual(Array.from(result.errors), []);
+  assert.equal(result.course.icon, '🧩');
+  assert.equal(result.course.lessons[0].icon, '📘');
+});
+
 test('the built-in starter remains valid and demonstrates all types', async () => {
   const source = await loadStarter();
   const result = parseDocument(source);

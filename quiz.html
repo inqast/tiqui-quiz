@@ -308,7 +308,7 @@
       const lineError = (line, message) => errors.push(`Строка ${line + 1}: ${message}`);
       const canonical = value => value.trim().toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/\s+/g, ' ');
       const duplicates = values => values.length !== new Set(values.map(canonical)).size;
-      const meta = (target, key, value, line) => { const normalized = key.toLocaleLowerCase('ru'); if (normalized === 'иконка') target.icon = value; else if (normalized === 'описание') target.description = value; else if (normalized === 'id') target.id = slug(value); else if (question && normalized === 'объяснение') question.explanation = value; else if (question && normalized === 'подсказка') question.hint = value; else return false; return true };
+      const meta = (target, key, value, line) => { const normalized = key.toLocaleLowerCase('ru'); if (normalized === 'иконка') { if (value) target.icon = value; } else if (normalized === 'описание') target.description = value; else if (normalized === 'id') target.id = slug(value); else if (question && normalized === 'объяснение') question.explanation = value; else if (question && normalized === 'подсказка') question.hint = value; else return false; return true };
       for (let index = 0; index < lines.length; index++) {
         const raw = lines[index], text = raw.trim(); if (!text || text.startsWith('<!--') )continue;
         if (/^#\s+/.test(text)) { if (course) { lineError(index, 'название курса встречается повторно'); continue } const title = text.replace(/^#\s+/, '').trim(); course = { version: 1, title, icon: '🧩', description: 'Выбери тему. Один урок — несколько минут.', id: slug(title), lessons: [] }; section = 'course'; continue }
