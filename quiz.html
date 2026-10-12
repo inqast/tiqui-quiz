@@ -210,6 +210,11 @@
       border-radius: 5px
     }
 
+    .note a {
+      color: var(--brand-dark);
+      font-weight: 700
+    }
+
     @media(max-width:850px) {
       .workspace {
         grid-template-columns: 1fr
@@ -261,7 +266,9 @@
       </div>
     </section>
     <p class="note">Локальный путь нельзя прочитать из браузера без разрешения пользователя. Используйте кнопку «Открыть
-      Markdown» или перетащите файл на верхнюю панель. Полная спецификация находится в <code>README.md</code>.</p>
+      Markdown» или перетащите файл на верхнюю панель. Формат курса, примеры всех видов вопросов и инструкции описаны в
+      <a href="https://github.com/inqast/tiqui-quiz#readme" target="_blank" rel="noopener noreferrer">документации проекта</a>.
+    </p>
   </main>
   <script>
     'use strict';
@@ -284,7 +291,7 @@
       const app = host.querySelector('.qapp'), footer = host.querySelector('.qfooter'), footerInner = host.querySelector('.qfooter-inner');
       const button = (text, className = '') => { const el = document.createElement('button'); el.type = 'button'; el.className = className; el.textContent = text; return el };
       function stars(count) { return `<span class="stars">${[0, 1, 2].map(i => `<span class="${i < count ? '' : 'off'}">★</span>`).join('')}</span>` }
-      function home() { session = null; footer.hidden = true; app.innerHTML = `<header class="home-head"><h1>${esc(course.icon)} ${esc(course.title)}</h1><div class="muted">${esc(course.description || 'Выбери тему. Один урок — несколько минут.')}</div></header><div class="lessons"></div><div class="home-foot"></div>`; const list = app.querySelector('.lessons'); course.lessons.forEach(lesson => { const item = button('', 'lesson-btn'); item.innerHTML = `<span class="licon">${esc(lesson.icon)}</span><span class="ltext"><b>${esc(lesson.title)}</b><small>${lesson.questions.length} вопросов</small></span>${stars(storage.get(`stars_${lesson.id}`, 0))}`; item.onclick = () => start(lesson); list.append(item) }); const sound = button(soundOn ? '🔊 Звук включён' : '🔇 Звук выключен', 'small-btn'); sound.onclick = () => { soundOn = !soundOn; storage.set('sound', soundOn); home() }; app.querySelector('.home-foot').append(sound) }
+      function home() { session = null; footer.hidden = true; const description = course.description ? `<div class="muted">${esc(course.description)}</div>` : ''; app.innerHTML = `<header class="home-head"><h1>${esc(course.icon)} ${esc(course.title)}</h1>${description}</header><div class="lessons"></div><div class="home-foot"></div>`; const list = app.querySelector('.lessons'); course.lessons.forEach(lesson => { const item = button('', 'lesson-btn'); item.innerHTML = `<span class="licon">${esc(lesson.icon)}</span><span class="ltext"><b>${esc(lesson.title)}</b><small>${lesson.questions.length} вопросов</small></span>${stars(storage.get(`stars_${lesson.id}`, 0))}`; item.onclick = () => start(lesson); list.append(item) }); const sound = button(soundOn ? '🔊 Звук включён' : '🔇 Звук выключен', 'small-btn'); sound.onclick = () => { soundOn = !soundOn; storage.set('sound', soundOn); home() }; app.querySelector('.home-foot').append(sound) }
       function start(lesson) { session = { lesson, queue: shuffle(lesson.questions.map((question, index) => ({ ...question, _id: index }))), done: new Set(), wrong: new Set(), mistakes: 0, combo: 0, firstTry: 0, current: null, renderer: null, locked: false }; app.innerHTML = '<div class="topbar"><button type="button" class="xbtn" aria-label="Выйти">✕</button><div class="progress"><div></div></div><div class="combo"></div></div><div class="qarea"></div>'; app.querySelector('.xbtn').onclick = home; footer.hidden = false; next() }
       function top() { app.querySelector('.progress div').style.width = `${session.done.size / session.lesson.questions.length * 100}%`; app.querySelector('.combo').textContent = session.combo >= 2 ? `🔥 ${session.combo}` : '' }
       function next() { if (!session.queue.length) { finish(); return } session.current = session.queue.shift(); session.locked = false; const area = app.querySelector('.qarea'); area.innerHTML = session.wrong.has(session.current._id) ? '<div class="retry">🔁 Попробуем ещё раз</div>' : ''; area.insertAdjacentHTML('beforeend', `<div class="qlabel">${esc({ choice: 'Выбери ответ', tf: 'Правда или ложь?', input: 'Напиши ответ', order: 'Расставь по порядку', match: 'Найди пары' }[session.current.type])}</div><div class="qtext">${esc(session.current.text)}</div>`); session.renderer = render(session.current); area.append(session.renderer.element); footer.className = 'qfooter'; footerInner.innerHTML = ''; const check = button('Проверить', 'big-btn'); check.disabled = true; check.onclick = verify; footerInner.append(check); session.checkButton = check; top(); if (session.renderer.input) setTimeout(() => session.renderer.input.focus(), 30) }
@@ -304,16 +311,18 @@
     function slug(value) { return String(value).toLocaleLowerCase('ru').normalize('NFKC').replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'quiz' }
     function parseDocument(source) {
       const lines = source.replace(/\r\n?/g, '\n').split('\n');
-      const errors = []; let course = null, lesson = null, question = null, section = 'course';
+      const errors = []; let course = null, lesson = null, question = null, section = 'course', missingLesson = false, missingQuestionType = false;
       const lineError = (line, message) => errors.push(`Строка ${line + 1}: ${message}`);
       const canonical = value => value.trim().toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/\s+/g, ' ');
       const duplicates = values => values.length !== new Set(values.map(canonical)).size;
-      const meta = (target, key, value, line) => { const normalized = key.toLocaleLowerCase('ru'); if (normalized === 'иконка') { if (value) target.icon = value; } else if (normalized === 'описание') target.description = value; else if (normalized === 'id') target.id = slug(value); else if (question && normalized === 'объяснение') question.explanation = value; else if (question && normalized === 'подсказка') question.hint = value; else return false; return true };
+      const meta = (target, key, value, line) => { if (!target) return false; const normalized = key.toLocaleLowerCase('ru'); if (normalized === 'иконка') { if (value) target.icon = value; } else if (normalized === 'описание') target.description = value; else if (normalized === 'id') target.id = slug(value); else if (question && normalized === 'объяснение') question.explanation = value; else if (question && normalized === 'подсказка') question.hint = value; else return false; return true };
       for (let index = 0; index < lines.length; index++) {
         const raw = lines[index], text = raw.trim(); if (!text || text.startsWith('<!--') )continue;
-        if (/^#\s+/.test(text)) { if (course) { lineError(index, 'название курса встречается повторно'); continue } const title = text.replace(/^#\s+/, '').trim(); course = { version: 1, title, icon: '🧩', description: 'Выбери тему. Один урок — несколько минут.', id: slug(title), lessons: [] }; section = 'course'; continue }
-        if (/^##\s+/.test(text)) { if (!course) { lineError(index, 'сначала укажите название курса через #'); continue } const title = text.replace(/^##\s+/, '').trim(); lesson = { title, icon: '📘', id: slug(title), questions: [] }; course.lessons.push(lesson); question = null; section = 'lesson'; continue }
-        if (/^###\s+/.test(text)) { if (!lesson) { lineError(index, 'вопрос должен находиться внутри темы ##'); continue } const label = text.replace(/^###\s+/, '').trim().toLocaleLowerCase('ru'); const types = { 'выбор': 'choice', 'правда или ложь': 'tf', 'правда/ложь': 'tf', 'ввод': 'input', 'порядок': 'order', 'пары': 'match' }; const type = types[label]; if (!type) { lineError(index, `неизвестный тип вопроса «${label}»`); question = null; continue } question = { type, text: '', line: index, explanation: '', hint: '' }; if (type === 'choice') question.options = []; if (type === 'input') question.answers = []; if (type === 'order') question.items = []; if (type === 'match') question.pairs = []; lesson.questions.push(question); section = 'question'; continue }
+        if (/^#\s+/.test(text)) { missingLesson = false; missingQuestionType = false; if (course) { lineError(index, 'название курса встречается повторно'); continue } const title = text.replace(/^#\s+/, '').trim(); course = { version: 1, title, icon: '🧩', description: '', id: slug(title), lessons: [] }; section = 'course'; continue }
+        if (/^##\s+/.test(text)) { missingLesson = false; missingQuestionType = false; if (!course) { lineError(index, 'сначала укажите название курса через #'); continue } const title = text.replace(/^##\s+/, '').trim(); lesson = { title, icon: '📘', id: slug(title), questions: [] }; course.lessons.push(lesson); question = null; section = 'lesson'; continue }
+        if (/^###\s+/.test(text)) { missingQuestionType = false; if (!lesson) { if (!missingLesson) lineError(index, 'вопрос должен находиться внутри темы ##'); missingLesson = true; continue } const label = text.replace(/^###\s+/, '').trim().toLocaleLowerCase('ru'); const types = { 'выбор': 'choice', 'правда или ложь': 'tf', 'правда/ложь': 'tf', 'ввод': 'input', 'порядок': 'order', 'пары': 'match' }; const type = types[label]; if (!type) { lineError(index, `неизвестный тип вопроса «${label}»`); question = null; continue } question = { type, text: '', line: index, explanation: '', hint: '' }; if (type === 'choice') question.options = []; if (type === 'input') question.answers = []; if (type === 'order') question.items = []; if (type === 'match') question.pairs = []; lesson.questions.push(question); section = 'question'; continue }
+        if (missingLesson) continue;
+        if (missingQuestionType) continue;
         const field = text.match(/^([^:]+):\s*(.*)$/);
         if (question) {
           const choice = text.match(/^-\s*\[([xX ])\]\s*(.*)$/);
@@ -349,6 +358,10 @@
           }
           if (field) {
             const key = field[1].trim().toLocaleLowerCase('ru'), value = field[2].trim();
+            if (['иконка', 'описание', 'id'].includes(key)) {
+              lineError(index, `поле «${field[1].trim()}» можно указывать только сразу после заголовка курса или темы`);
+              continue;
+            }
             if (key === 'ответ' && question.type === 'tf') {
               if (Object.hasOwn(question, 'answer')) {
                 lineError(index, 'ответ указан повторно');
@@ -376,6 +389,11 @@
           if (!question.text) { question.text = text; continue } lineError(index, 'не удалось распознать строку внутри вопроса'); continue
         }
         if (field && meta(section === 'lesson' ? lesson : course, field[1].trim(), field[2].trim(), index)) continue;
+        if (section === 'lesson' && lesson) {
+          lineError(index, 'перед содержимым вопроса укажите его тип: ### Выбор, ### Правда или ложь, ### Ввод, ### Порядок или ### Пары');
+          missingQuestionType = true;
+          continue;
+        }
         lineError(index, 'не удалось распознать строку');
       }
       if (!course) return { course: null, errors: ['Добавьте название курса: # Название'] };

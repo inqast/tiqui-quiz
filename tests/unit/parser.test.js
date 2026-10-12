@@ -111,6 +111,126 @@ test('uses default icons when icon fields are empty', () => {
   assert.equal(result.course.lessons[0].icon, '📘');
 });
 
+test('reports a missing course title without throwing on course metadata', () => {
+  const parsed = parseDocument(`Иконка: 🚀
+Описание: Курс без заголовка
+
+## Тема`);
+
+  assert.equal(parsed.course, null);
+  assert.ok(parsed.errors.includes('Добавьте название курса: # Название'));
+});
+
+test('keeps an omitted course description empty', () => {
+  const parsed = parseDocument(`# Курс
+
+## Тема
+
+### Правда или ложь
+Утверждение
+Ответ: правда`);
+
+  assert.equal(parsed.errors.length, 0);
+  assert.equal(parsed.course.description, '');
+});
+
+test('rejects course or lesson metadata inside a question', async t => {
+  for (const field of ['Иконка: 🌟', 'Описание: описание', 'ID: misplaced']) {
+    await t.test(field.split(':')[0], () => {
+      const parsed = parseDocument(`# Курс
+
+## Тема
+
+### Правда или ложь
+Утверждение
+${field}
+Ответ: правда`);
+
+      assert.ok(parsed.errors.some(error => error.includes('можно указывать только сразу после заголовка курса или темы')));
+    });
+  }
+});
+
+test('rejects a later lesson whose heading was removed', () => {
+  const parsed = parseDocument(`# Курс
+
+## Первая тема
+Иконка: 1️⃣
+
+### Правда или ложь
+Первое утверждение
+Ответ: правда
+
+Иконка: 2️⃣
+
+### Правда или ложь
+Второе утверждение
+Ответ: ложь`);
+
+  assert.ok(parsed.errors.some(error => error.includes('можно указывать только сразу после заголовка курса или темы')));
+});
+
+test('rejects content left after an intermediate question heading was removed', () => {
+  const parsed = parseDocument(`# Курс
+
+## Тема
+
+### Правда или ложь
+Первое утверждение
+Ответ: правда
+
+Второе утверждение
+Ответ: ложь`);
+
+  assert.ok(parsed.errors.some(error => error.includes('не удалось распознать строку внутри вопроса')));
+  assert.ok(parsed.errors.some(error => error.includes('ответ указан повторно')));
+});
+
+test('reports one friendly error when the first question type is missing', () => {
+  const parsed = parseDocument(`# Курс
+
+## Тема
+
+Текст вопроса
+- [x] Верно
+- [ ] Неверно
+Объяснение: пояснение
+
+### Правда или ложь
+Следующий вопрос
+Ответ: правда`);
+
+  const missingTypeErrors = parsed.errors.filter(error => error.includes('перед содержимым вопроса укажите его тип'));
+  assert.equal(missingTypeErrors.length, 1);
+  assert.ok(missingTypeErrors[0].includes('### Выбор'));
+  assert.ok(!parsed.errors.some(error => error.includes('не удалось распознать строку')));
+});
+
+test('reports one useful error when the first lesson heading is missing', () => {
+  const parsed = parseDocument(`# Курс
+
+### Выбор
+Первый вопрос
+- [x] Верно
+- [ ] Неверно
+
+### Правда или ложь
+Второй вопрос
+Ответ: правда
+
+## Следующая тема
+
+### Правда или ложь
+Третий вопрос
+Ответ: правда`);
+
+  const missingLessonErrors = parsed.errors.filter(error => error.includes('вопрос должен находиться внутри темы ##'));
+  assert.equal(missingLessonErrors.length, 1);
+  assert.ok(!parsed.errors.some(error => error.includes('не удалось распознать строку')));
+  assert.equal(parsed.course.lessons.length, 1);
+  assert.equal(parsed.course.lessons[0].title, 'Следующая тема');
+});
+
 test('the built-in starter remains valid and demonstrates all types', async () => {
   const source = await loadStarter();
   const result = parseDocument(source);

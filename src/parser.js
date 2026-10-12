@@ -1,16 +1,18 @@
 export function slug(value) { return String(value).toLocaleLowerCase('ru').normalize('NFKC').replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'quiz' }
 export function parseDocument(source) {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
-  const errors = []; let course = null, lesson = null, question = null, section = 'course';
+  const errors = []; let course = null, lesson = null, question = null, section = 'course', missingLesson = false, missingQuestionType = false;
   const lineError = (line, message) => errors.push(`Строка ${line + 1}: ${message}`);
   const canonical = value => value.trim().toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/\s+/g, ' ');
   const duplicates = values => values.length !== new Set(values.map(canonical)).size;
-  const meta = (target, key, value, line) => { const normalized = key.toLocaleLowerCase('ru'); if (normalized === 'иконка') { if (value) target.icon = value; } else if (normalized === 'описание') target.description = value; else if (normalized === 'id') target.id = slug(value); else if (question && normalized === 'объяснение') question.explanation = value; else if (question && normalized === 'подсказка') question.hint = value; else return false; return true };
+  const meta = (target, key, value, line) => { if (!target) return false; const normalized = key.toLocaleLowerCase('ru'); if (normalized === 'иконка') { if (value) target.icon = value; } else if (normalized === 'описание') target.description = value; else if (normalized === 'id') target.id = slug(value); else if (question && normalized === 'объяснение') question.explanation = value; else if (question && normalized === 'подсказка') question.hint = value; else return false; return true };
   for (let index = 0; index < lines.length; index++) {
     const raw = lines[index], text = raw.trim(); if (!text || text.startsWith('<!--') )continue;
-    if (/^#\s+/.test(text)) { if (course) { lineError(index, 'название курса встречается повторно'); continue } const title = text.replace(/^#\s+/, '').trim(); course = { version: 1, title, icon: '🧩', description: 'Выбери тему. Один урок — несколько минут.', id: slug(title), lessons: [] }; section = 'course'; continue }
-    if (/^##\s+/.test(text)) { if (!course) { lineError(index, 'сначала укажите название курса через #'); continue } const title = text.replace(/^##\s+/, '').trim(); lesson = { title, icon: '📘', id: slug(title), questions: [] }; course.lessons.push(lesson); question = null; section = 'lesson'; continue }
-    if (/^###\s+/.test(text)) { if (!lesson) { lineError(index, 'вопрос должен находиться внутри темы ##'); continue } const label = text.replace(/^###\s+/, '').trim().toLocaleLowerCase('ru'); const types = { 'выбор': 'choice', 'правда или ложь': 'tf', 'правда/ложь': 'tf', 'ввод': 'input', 'порядок': 'order', 'пары': 'match' }; const type = types[label]; if (!type) { lineError(index, `неизвестный тип вопроса «${label}»`); question = null; continue } question = { type, text: '', line: index, explanation: '', hint: '' }; if (type === 'choice') question.options = []; if (type === 'input') question.answers = []; if (type === 'order') question.items = []; if (type === 'match') question.pairs = []; lesson.questions.push(question); section = 'question'; continue }
+    if (/^#\s+/.test(text)) { missingLesson = false; missingQuestionType = false; if (course) { lineError(index, 'название курса встречается повторно'); continue } const title = text.replace(/^#\s+/, '').trim(); course = { version: 1, title, icon: '🧩', description: '', id: slug(title), lessons: [] }; section = 'course'; continue }
+    if (/^##\s+/.test(text)) { missingLesson = false; missingQuestionType = false; if (!course) { lineError(index, 'сначала укажите название курса через #'); continue } const title = text.replace(/^##\s+/, '').trim(); lesson = { title, icon: '📘', id: slug(title), questions: [] }; course.lessons.push(lesson); question = null; section = 'lesson'; continue }
+    if (/^###\s+/.test(text)) { missingQuestionType = false; if (!lesson) { if (!missingLesson) lineError(index, 'вопрос должен находиться внутри темы ##'); missingLesson = true; continue } const label = text.replace(/^###\s+/, '').trim().toLocaleLowerCase('ru'); const types = { 'выбор': 'choice', 'правда или ложь': 'tf', 'правда/ложь': 'tf', 'ввод': 'input', 'порядок': 'order', 'пары': 'match' }; const type = types[label]; if (!type) { lineError(index, `неизвестный тип вопроса «${label}»`); question = null; continue } question = { type, text: '', line: index, explanation: '', hint: '' }; if (type === 'choice') question.options = []; if (type === 'input') question.answers = []; if (type === 'order') question.items = []; if (type === 'match') question.pairs = []; lesson.questions.push(question); section = 'question'; continue }
+    if (missingLesson) continue;
+    if (missingQuestionType) continue;
     const field = text.match(/^([^:]+):\s*(.*)$/);
     if (question) {
       const choice = text.match(/^-\s*\[([xX ])\]\s*(.*)$/);
@@ -46,6 +48,10 @@ export function parseDocument(source) {
       }
       if (field) {
         const key = field[1].trim().toLocaleLowerCase('ru'), value = field[2].trim();
+        if (['иконка', 'описание', 'id'].includes(key)) {
+          lineError(index, `поле «${field[1].trim()}» можно указывать только сразу после заголовка курса или темы`);
+          continue;
+        }
         if (key === 'ответ' && question.type === 'tf') {
           if (Object.hasOwn(question, 'answer')) {
             lineError(index, 'ответ указан повторно');
@@ -73,6 +79,11 @@ export function parseDocument(source) {
       if (!question.text) { question.text = text; continue } lineError(index, 'не удалось распознать строку внутри вопроса'); continue
     }
     if (field && meta(section === 'lesson' ? lesson : course, field[1].trim(), field[2].trim(), index)) continue;
+    if (section === 'lesson' && lesson) {
+      lineError(index, 'перед содержимым вопроса укажите его тип: ### Выбор, ### Правда или ложь, ### Ввод, ### Порядок или ### Пары');
+      missingQuestionType = true;
+      continue;
+    }
     lineError(index, 'не удалось распознать строку');
   }
   if (!course) return { course: null, errors: ['Добавьте название курса: # Название'] };
