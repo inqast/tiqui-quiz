@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="ru">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tiqui Quiz — конструктор</title>
+  <style>
+    :root {
+      --ink: #253238;
+      --muted: #68777d;
+      --paper: #fffef8;
+      --line: #dce3df;
+      --brand: #18a86b;
+      --brand-dark: #0d7f4f;
+      --soft: #e9f8f0;
+      --danger: #d64545;
+      --shadow: 0 16px 50px #17382b18
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      background: #f1f5f2;
+      color: var(--ink);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit
+    }
+
+    button {
+      cursor: pointer
+    }
+
+    .shell {
+      max-width: 1180px;
+      margin: auto;
+      padding: 28px 20px 48px
+    }
+
+    .mast {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px
+    }
+
+    .brand {
+      font-size: 25px;
+      font-weight: 850
+    }
+
+    .brand span {
+      color: var(--brand)
+    }
+
+    .tag {
+      color: var(--muted)
+    }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow)
+    }
+
+    .toolbar {
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap
+    }
+
+    .btn,
+    .file-label {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 16px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 750
+    }
+
+    .btn:hover,
+    .file-label:hover {
+      background: var(--brand-dark)
+    }
+
+    .btn.secondary {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line)
+    }
+
+    .btn:disabled {
+      opacity: .45;
+      cursor: not-allowed
+    }
+
+    .file-label input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0
+    }
+
+    .filename {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 14px
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(330px, .9fr) minmax(390px, 1.1fr);
+      gap: 18px;
+      margin-top: 18px
+    }
+
+    .editor {
+      overflow: hidden
+    }
+
+    .editor-head,
+    .preview-head {
+      padding: 13px 17px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 750
+    }
+
+    .status {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    textarea {
+      display: block;
+      width: 100%;
+      height: 690px;
+      border: 0;
+      resize: vertical;
+      padding: 18px;
+      background: #fbfcf8;
+      color: #24302c;
+      font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      outline: none;
+      tab-size: 2
+    }
+
+    .preview {
+      overflow: hidden
+    }
+
+    .preview-box {
+      height: 690px;
+      overflow: auto;
+      background: #f7f7f2
+    }
+
+    .drop {
+      outline: 4px dashed var(--brand);
+      outline-offset: -8px
+    }
+
+    .messages {
+      margin-top: 16px;
+      padding: 0 18px
+    }
+
+    .messages:empty {
+      display: none
+    }
+
+    .messages ul {
+      margin: 10px 0 16px;
+      padding-left: 22px
+    }
+
+    .error {
+      color: var(--danger)
+    }
+
+    .ok {
+      color: var(--brand-dark);
+      font-weight: 700
+    }
+
+    .note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px
+    }
+
+    .note code {
+      background: #e4ebe7;
+      padding: 2px 5px;
+      border-radius: 5px
+    }
+
+    @media(max-width:850px) {
+      .workspace {
+        grid-template-columns: 1fr
+      }
+
+      .filename {
+        width: 100%;
+        margin-left: 0
+      }
+
+      .preview-box,
+      textarea {
+        height: 620px
+      }
+
+      .mast {
+        align-items: flex-start;
+        flex-direction: column
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="shell">
+    <header class="mast">
+      <div>
+        <div class="brand"><span>Tiqui</span> Quiz</div>
+        <div class="tag">Из Markdown — в самостоятельный учебный квиз</div>
+      </div>
+      <div class="tag">Работает локально · без установки</div>
+    </header>
+    <section class="panel toolbar" id="dropZone">
+      <label class="file-label">Открыть Markdown<input id="fileInput" type="file"
+          accept=".md,text/markdown,text/plain"></label>
+      <button class="btn secondary" id="saveMd">Скачать Markdown</button>
+      <button class="btn" id="exportHtml">Скачать квиз HTML</button>
+      <span class="filename" id="filename">lesson-example.md</span>
+    </section>
+    <div class="messages panel" id="messages" aria-live="polite"></div>
+    <section class="workspace">
+      <div class="panel editor">
+        <div class="editor-head"><span>Документ курса</span><span class="status" id="editStatus">готов</span></div>
+        <textarea id="source" spellcheck="false" aria-label="Markdown курса"></textarea>
+      </div>
+      <div class="panel preview">
+        <div class="preview-head"><span>Предпросмотр</span><span class="status">прогресс здесь тестовый</span></div>
+        <div class="preview-box" id="preview"></div>
+      </div>
+    </section>
+    <p class="note">Локальный путь нельзя прочитать из браузера без разрешения пользователя. Используйте кнопку «Открыть
+      Markdown» или перетащите файл на верхнюю панель. Полная спецификация находится в <code>README.md</code>.</p>
+  </main>
+  <script>
+    'use strict';
+    const PLAYER_CSS = `
+:root{--q-bg:#f7f7f2;--q-card:#fff;--q-text:#2b2b2b;--q-muted:#737b78;--q-border:#dfe3e1;--q-green:#58cc02;--q-green-d:#46a302;--q-green-bg:#dfffc8;--q-red:#ff4b4b;--q-red-d:#d83b3b;--q-red-bg:#ffe2e3;--q-blue:#1cb0f6;--q-blue-bg:#ddf4ff;--q-gold:#ffc800}*{box-sizing:border-box}.tq{min-height:100%;background:var(--q-bg);color:var(--q-text);font:18px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}.tq button,.tq input{font:inherit;color:inherit}.qapp{max-width:650px;margin:auto;padding:18px 17px 160px}.home-head{text-align:center;margin:10px 0 22px}.home-head h1{font-size:31px;margin:0 0 5px}.muted{color:var(--q-muted)}.lessons{display:flex;flex-direction:column;gap:11px}.lesson-btn,.opt,.chip,.mbtn{width:100%;display:flex;align-items:center;gap:12px;background:var(--q-card);border:2px solid var(--q-border);border-bottom-width:5px;border-radius:16px;padding:14px;text-align:left;cursor:pointer}.lesson-btn:hover,.opt:hover,.chip:hover,.mbtn:hover{border-color:var(--q-blue)}button:focus-visible,input:focus-visible{outline:3px solid #8bd8ff;outline-offset:2px}.lesson-btn:active,.opt:active,.chip:active,.mbtn:active{transform:translateY(2px);border-bottom-width:3px}.licon{font-size:35px}.ltext{flex:1;display:flex;flex-direction:column}.ltext small{font-size:14px;color:var(--q-muted)}.stars{color:var(--q-gold);white-space:nowrap}.off{color:#d7d7d7}.home-foot{display:flex;justify-content:center;margin-top:18px}.small-btn{border:2px solid var(--q-border);border-radius:11px;background:#fff;padding:7px 12px;color:var(--q-muted)!important;cursor:pointer;font-size:14px}.topbar{display:flex;align-items:center;gap:11px;margin-bottom:23px}.xbtn{border:0;background:none;color:#999;font-size:25px;cursor:pointer}.progress{height:17px;background:#e4e6e5;border-radius:20px;overflow:hidden;flex:1}.progress div{height:100%;background:var(--q-green);transition:width .35s}.combo{min-width:42px;color:#f59500;font-weight:800}.retry{display:inline-block;background:#fff2ce;color:#8a6100;padding:4px 9px;border-radius:8px;font-size:14px}.qlabel{text-transform:uppercase;letter-spacing:.04em;color:var(--q-muted);font-weight:700;font-size:14px;margin-top:8px}.qtext{font-size:25px;font-weight:650;margin:7px 0 20px}.options,.bank,.slot{display:flex;flex-direction:column;gap:10px}.key{border:2px solid var(--q-border);border-radius:8px;min-width:29px;height:29px;display:grid;place-items:center;font-size:14px;color:var(--q-muted)}.selected{border-color:var(--q-blue)!important;background:var(--q-blue-bg)!important}.right{border-color:var(--q-green)!important;background:var(--q-green-bg)!important}.wrong{border-color:var(--q-red)!important;background:var(--q-red-bg)!important}.tinput{width:100%;padding:15px;border:2px solid var(--q-border);border-radius:14px;background:#fff;font-size:22px}.order{display:flex;flex-direction:column;gap:17px}.slot{min-height:75px;border:2px dashed #c8cfcc;border-radius:15px;padding:9px}.placeholder{text-align:center;color:var(--q-muted);padding:15px}.chip.used{visibility:hidden}.num{background:var(--q-blue);color:#fff;border-radius:50%;min-width:27px;height:27px;display:grid;place-items:center;font-size:14px}.match{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mcol{display:flex;flex-direction:column;gap:9px}.mbtn{justify-content:center;text-align:center;min-height:62px;font-size:16px}.mbtn.done{opacity:.45;background:var(--q-green-bg);border-color:var(--q-green)}.shake{animation:qshake .3s}.qfooter{position:sticky;bottom:0;background:var(--q-bg);border-top:2px solid var(--q-border);padding:13px 17px;z-index:2}.qfooter.good{background:var(--q-green-bg)}.qfooter.bad{background:var(--q-red-bg)}.qfooter-inner{max-width:650px;margin:auto}.fb{margin-bottom:10px}.fb-title{font-size:21px;font-weight:850}.good .fb-title{color:#378400}.bad .fb-title{color:#b82f2f}.fb-ans,.fb-explain{margin-top:4px}.fb-explain{font-size:16px;opacity:.85}.big-btn{width:100%;border:0;border-bottom:5px solid var(--q-green-d);border-radius:14px;padding:14px;background:var(--q-green);color:#fff!important;font-weight:850;text-transform:uppercase;cursor:pointer}.big-btn.red{background:var(--q-red);border-bottom-color:var(--q-red-d)}.big-btn.ghost{background:#fff;color:var(--q-blue)!important;border:2px solid var(--q-border);border-bottom-width:5px}.big-btn:disabled{background:#ddd;border-color:#c5c5c5;color:#999!important;cursor:default}.end{text-align:center;padding-top:25px}.end-emoji{font-size:68px}.end .stars{font-size:42px}.stats{display:flex;justify-content:center;gap:10px;margin:18px 0}.stats div{background:#fff;border:2px solid var(--q-border);border-radius:14px;padding:10px 16px}.stats b{font-size:25px;display:block}.stats small{font-size:13px;color:var(--q-muted)}.end-btns{display:flex;flex-direction:column;gap:10px}@keyframes qshake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}@media(max-width:500px){.qapp{padding-left:12px;padding-right:12px}.qtext{font-size:22px}.match{grid-template-columns:1fr 1fr}.mbtn{font-size:14px;padding:9px}.stars{font-size:16px}}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+`;
+    const playerStyle = document.createElement('style'); playerStyle.textContent = PLAYER_CSS; document.head.append(playerStyle);
+
+    function createPlayer(host, course, options = {}) {
+      const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+      const shuffle = items => { const copy = items.slice(); for (let i = copy.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[copy[i], copy[j]] = [copy[j], copy[i]] } return copy };
+      const normalize = value => String(value).trim().toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/\s+/g, ' ');
+      const distance = (a, b) => { const rows = Array.from({ length: a.length + 1 }, (_, i) => [i]); for (let i = 0; i <= a.length; i++)for (let j = 1; j <= b.length; j++)rows[i][j] = i ? Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) : j; return rows[a.length][b.length] };
+      const prefix = `tiqui_${course.id}_`;
+      const memory = new Map();
+      const storage = { get(key, fallback) { if (options.preview) return memory.has(key) ? memory.get(key) : fallback; try { const value = localStorage.getItem(prefix + key); return value === null ? fallback : JSON.parse(value) } catch { return fallback } }, set(key, value) { if (options.preview) { memory.set(key, value); return } try { localStorage.setItem(prefix + key, JSON.stringify(value)) } catch { } } };
+      let session = null, soundOn = storage.get('sound', true), audioContext = null;
+      const tone = (frequencies, duration = .1) => { if (!soundOn) return; try { audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)(); let time = audioContext.currentTime; frequencies.forEach(frequency => { const oscillator = audioContext.createOscillator(), gain = audioContext.createGain(); oscillator.frequency.value = frequency; gain.gain.setValueAtTime(.12, time); gain.gain.exponentialRampToValueAtTime(.001, time + duration); oscillator.connect(gain); gain.connect(audioContext.destination); oscillator.start(time); oscillator.stop(time + duration); time += duration * .8 }) } catch { } };
+      host.innerHTML = '<div class="tq"><div class="qapp"></div><div class="qfooter" hidden><div class="qfooter-inner"></div></div></div>';
+      const app = host.querySelector('.qapp'), footer = host.querySelector('.qfooter'), footerInner = host.querySelector('.qfooter-inner');
+      const button = (text, className = '') => { const el = document.createElement('button'); el.type = 'button'; el.className = className; el.textContent = text; return el };
+      function stars(count) { return `<span class="stars">${[0, 1, 2].map(i => `<span class="${i < count ? '' : 'off'}">★</span>`).join('')}</span>` }
+      function home() { session = null; footer.hidden = true; app.innerHTML = `<header class="home-head"><h1>${esc(course.icon)} ${esc(course.title)}</h1><div class="muted">${esc(course.description || 'Выбери тему. Один урок — несколько минут.')}</div></header><div class="lessons"></div><div class="home-foot"></div>`; const list = app.querySelector('.lessons'); course.lessons.forEach(lesson => { const item = button('', 'lesson-btn'); item.innerHTML = `<span class="licon">${esc(lesson.icon)}</span><span class="ltext"><b>${esc(lesson.title)}</b><small>${lesson.questions.length} вопросов</small></span>${stars(storage.get(`stars_${lesson.id}`, 0))}`; item.onclick = () => start(lesson); list.append(item) }); const sound = button(soundOn ? '🔊 Звук включён' : '🔇 Звук выключен', 'small-btn'); sound.onclick = () => { soundOn = !soundOn; storage.set('sound', soundOn); home() }; app.querySelector('.home-foot').append(sound) }
+      function start(lesson) { session = { lesson, queue: shuffle(lesson.questions.map((question, index) => ({ ...question, _id: index }))), done: new Set(), wrong: new Set(), mistakes: 0, combo: 0, firstTry: 0, current: null, renderer: null, locked: false }; app.innerHTML = '<div class="topbar"><button type="button" class="xbtn" aria-label="Выйти">✕</button><div class="progress"><div></div></div><div class="combo"></div></div><div class="qarea"></div>'; app.querySelector('.xbtn').onclick = home; footer.hidden = false; next() }
+      function top() { app.querySelector('.progress div').style.width = `${session.done.size / session.lesson.questions.length * 100}%`; app.querySelector('.combo').textContent = session.combo >= 2 ? `🔥 ${session.combo}` : '' }
+      function next() { if (!session.queue.length) { finish(); return } session.current = session.queue.shift(); session.locked = false; const area = app.querySelector('.qarea'); area.innerHTML = session.wrong.has(session.current._id) ? '<div class="retry">🔁 Попробуем ещё раз</div>' : ''; area.insertAdjacentHTML('beforeend', `<div class="qlabel">${esc({ choice: 'Выбери ответ', tf: 'Правда или ложь?', input: 'Напиши ответ', order: 'Расставь по порядку', match: 'Найди пары' }[session.current.type])}</div><div class="qtext">${esc(session.current.text)}</div>`); session.renderer = render(session.current); area.append(session.renderer.element); footer.className = 'qfooter'; footerInner.innerHTML = ''; const check = button('Проверить', 'big-btn'); check.disabled = true; check.onclick = verify; footerInner.append(check); session.checkButton = check; top(); if (session.renderer.input) setTimeout(() => session.renderer.input.focus(), 30) }
+      function ready() { session.checkButton.disabled = !session.renderer.ready() }
+      function verify() { if (session.locked || !session.renderer.ready()) return; session.locked = true; const result = session.renderer.check(); session.renderer.reveal?.(result.ok); tone(result.ok ? [660, 880] : [220, 170], result.ok ? .11 : .16); if (result.ok) { session.done.add(session.current._id); if (!session.wrong.has(session.current._id) && !result.hadError) session.firstTry++; session.combo++ } else { session.mistakes++; session.combo = 0; session.wrong.add(session.current._id); session.queue.push(session.current) } top(); footer.className = `qfooter ${result.ok ? 'good' : 'bad'}`; footerInner.innerHTML = ''; const feedback = document.createElement('div'); feedback.className = 'fb'; let html = `<div class="fb-title">${result.ok ? 'Отлично! ⭐' : 'Почти! Запомни 👇'}</div>`; if (result.answer) html += `<div class="fb-ans">${result.ok && result.typo ? 'Пишется так' : 'Правильно'}: <b>${esc(result.answer)}</b></div>`; const detail = result.feedback || session.current.explanation; if (detail) html += `<div class="fb-explain">${esc(detail)}</div>`; feedback.innerHTML = html; const onward = button('Дальше', `big-btn${result.ok ? '' : ' red'}`); onward.onclick = next; footerInner.append(feedback, onward); onward.focus() }
+      function finish() { tone([523, 659, 784, 1047], .14); const count = session.mistakes === 0 ? 3 : session.mistakes <= 2 ? 2 : 1; const previous = storage.get(`stars_${session.lesson.id}`, 0); if (count > previous) storage.set(`stars_${session.lesson.id}`, count); footer.hidden = true; app.innerHTML = `<section class="end"><div class="end-emoji">${count === 3 ? '🏆' : count === 2 ? '🌟' : '💪'}</div><h1>Тема пройдена!</h1>${stars(count)}<div class="stats"><div><b>${session.firstTry}</b><small>с первого раза</small></div><div><b>${session.mistakes}</b><small>ошибок</small></div></div><div class="end-btns"></div></section>`; const controls = app.querySelector('.end-btns'), again = button('Пройти ещё раз', 'big-btn'), back = button('К темам', 'big-btn ghost'); again.onclick = () => start(session.lesson); back.onclick = home; controls.append(again, back) }
+      function render(question) {
+        if (question.type === 'choice' || question.type === 'tf') { const optionsList = question.type === 'tf' ? [{ text: 'Правда', feedback: question.feedbackTrue, value: true }, { text: 'Ложь', feedback: question.feedbackFalse, value: false }] : question.options.map((item, index) => ({ ...item, value: index })); const box = document.createElement('div'); box.className = 'options'; let selected = null; const shuffled = question.type === 'tf' ? optionsList : shuffle(optionsList); const buttons = shuffled.map((item, index) => { const itemButton = button('', 'opt'); itemButton.innerHTML = `<span class="key">${index + 1}</span><span>${esc(item.text)}</span>`; itemButton.onclick = () => { if (session.locked) return; buttons.forEach(node => node.classList.remove('selected')); itemButton.classList.add('selected'); selected = { item, button: itemButton }; ready() }; box.append(itemButton); return itemButton }); return { element: box, ready: () => selected !== null, check: () => { const ok = question.type === 'tf' ? selected.item.value === question.answer : selected.item.value === question.answer; return { ok, answer: question.type === 'tf' ? (question.answer ? 'Правда' : 'Ложь') : question.options[question.answer].text, feedback: selected.item.feedback || question.explanation } }, reveal: ok => { selected.button.classList.add(ok ? 'right' : 'wrong'); if (!ok && question.type === 'choice') { const correct = shuffled.findIndex(item => item.value === question.answer); buttons[correct].classList.add('right') } } } }
+        if (question.type === 'input') { const input = document.createElement('input'); input.className = 'tinput'; input.placeholder = 'Твой ответ'; input.autocomplete = 'off'; input.addEventListener('input', ready); return { element: input, input, ready: () => input.value.trim().length > 0, check: () => { const value = normalize(input.value), exact = question.answers.some(answer => normalize(answer) === value), near = !exact && question.answers.some(answer => { const normalized = normalize(answer); return normalized.length > 4 && distance(normalized, value) <= 1 }); return { ok: exact || near, typo: near, answer: question.answers[0], feedback: question.hint || question.explanation } }, reveal: ok => input.classList.add(ok ? 'right' : 'wrong') } }
+        if (question.type === 'order') { const wrap = document.createElement('div'); wrap.className = 'order'; const slot = document.createElement('div'); slot.className = 'slot'; const bank = document.createElement('div'); bank.className = 'bank'; wrap.append(slot, bank); const items = shuffle(question.items.map((text, index) => ({ text, index }))); const chosen = []; const draw = () => { slot.innerHTML = chosen.length ? '' : '<div class="placeholder">Выбирай карточки по порядку</div>'; chosen.forEach((item, index) => { const chosenButton = button('', 'chip'); chosenButton.innerHTML = `<span class="num">${index + 1}</span><span>${esc(item.text)}</span>`; chosenButton.onclick = () => { if (session.locked) return; chosen.splice(index, 1); item.button.classList.remove('used'); draw(); ready() }; slot.append(chosenButton) }); ready() }; items.forEach(item => { item.button = button(item.text, 'chip'); item.button.onclick = () => { if (session.locked) return; chosen.push(item); item.button.classList.add('used'); draw() }; bank.append(item.button) }); return { element: wrap, ready: () => chosen.length === items.length, check: () => ({ ok: chosen.every((item, index) => item.index === index), answer: question.items.join(' → '), feedback: question.explanation }), reveal: ok => slot.classList.add(ok ? 'right' : 'wrong') } }
+        const wrap = document.createElement('div'); wrap.className = 'match'; const left = document.createElement('div'), right = document.createElement('div'); left.className = right.className = 'mcol'; wrap.append(left, right); const pairs = question.pairs.map((pair, index) => ({ ...pair, index })); let selected = null, matched = 0, hadError = false; const leftButtons = []; shuffle(pairs).forEach(pair => { const leftButton = button(pair.left, 'mbtn'); leftButton.dataset.index = pair.index; leftButton.onclick = () => { if (leftButton.classList.contains('done')) return; leftButtons.forEach(node => node.classList.remove('selected')); leftButton.classList.add('selected'); selected = pair.index }; leftButtons.push(leftButton); left.append(leftButton) }); shuffle(pairs).forEach(pair => { const rightButton = button(pair.right, 'mbtn'); rightButton.onclick = () => { if (selected === null || rightButton.classList.contains('done')) return; const leftButton = leftButtons.find(node => Number(node.dataset.index) === selected); if (selected === pair.index) { leftButton.classList.add('done'); rightButton.classList.add('done'); leftButton.classList.remove('selected'); selected = null; matched++; ready() } else { hadError = true; leftButton.classList.add('shake'); rightButton.classList.add('shake'); setTimeout(() => { leftButton.classList.remove('shake'); rightButton.classList.remove('shake') }, 320) } }; right.append(rightButton) }); return { element: wrap, ready: () => matched === pairs.length, check: () => ({ ok: true, hadError, feedback: question.explanation }) }
+      }
+      host.onkeydown = event => { if (!session || event.key !== 'Enter') return; if (document.activeElement?.tagName === 'INPUT') return; const nextButton = footerInner.querySelector('.big-btn:not(:disabled)'); if (nextButton) { event.preventDefault(); nextButton.click() } };
+      home();
+    }
+
+    function slug(value) { return String(value).toLocaleLowerCase('ru').normalize('NFKD').replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'quiz' }
+    function parseDocument(source) {
+      const lines = source.replace(/\r\n?/g, '\n').split('\n');
+      const errors = []; let course = null, lesson = null, question = null, section = 'course';
+      const lineError = (line, message) => errors.push(`Строка ${line + 1}: ${message}`);
+      const meta = (target, key, value, line) => { const normalized = key.toLocaleLowerCase('ru'); if (normalized === 'иконка') target.icon = value; else if (normalized === 'описание') target.description = value; else if (normalized === 'id') target.id = slug(value); else if (question && normalized === 'объяснение') question.explanation = value; else if (question && normalized === 'подсказка') question.hint = value; else return false; return true };
+      for (let index = 0; index < lines.length; index++) {
+        const raw = lines[index], text = raw.trim(); if (!text || text.startsWith('<!--') )continue;
+        if (/^#\s+/.test(text)) { if (course) { lineError(index, 'название курса встречается повторно'); continue } const title = text.replace(/^#\s+/, '').trim(); course = { version: 1, title, icon: '🧩', description: 'Выбери тему. Один урок — несколько минут.', id: slug(title), lessons: [] }; section = 'course'; continue }
+        if (/^##\s+/.test(text)) { if (!course) { lineError(index, 'сначала укажите название курса через #'); continue } const title = text.replace(/^##\s+/, '').trim(); lesson = { title, icon: '📘', id: slug(title), questions: [] }; course.lessons.push(lesson); question = null; section = 'lesson'; continue }
+        if (/^###\s+/.test(text)) { if (!lesson) { lineError(index, 'вопрос должен находиться внутри темы ##'); continue } const label = text.replace(/^###\s+/, '').trim().toLocaleLowerCase('ru'); const types = { 'выбор': 'choice', 'правда или ложь': 'tf', 'правда/ложь': 'tf', 'ввод': 'input', 'порядок': 'order', 'пары': 'match' }; const type = types[label]; if (!type) { lineError(index, `неизвестный тип вопроса «${label}»`); question = null; continue } question = { type, text: '', line: index, explanation: '', hint: '' }; if (type === 'choice') question.options = []; if (type === 'input') question.answers = []; if (type === 'order') question.items = []; if (type === 'match') question.pairs = []; lesson.questions.push(question); section = 'question'; continue }
+        const field = text.match(/^([^:]+):\s*(.*)$/);
+        if (question) {
+          const choice = text.match(/^-\s*\[([xX ])\]\s*(.+)$/); if (choice && question.type === 'choice') { question.options.push({ text: choice[2].trim(), correct: choice[1].toLowerCase() === 'x', feedback: '' }); continue }
+          if (/^Подсказка:\s*/i.test(text) && question.type === 'choice' && question.options.length) { question.options.at(-1).feedback = text.replace(/^Подсказка:\s*/i, '').trim(); continue }
+          const ordered = text.match(/^\d+[.)]\s+(.+)$/); if (ordered && question.type === 'order') { question.items.push(ordered[1].trim()); continue }
+          const pair = text.match(/^-\s*(.+?)\s*=>\s*(.+)$/); if (pair && question.type === 'match') { question.pairs.push({ left: pair[1].trim(), right: pair[2].trim() }); continue }
+          if (field) { const key = field[1].trim().toLocaleLowerCase('ru'), value = field[2].trim(); if (key === 'ответ' && question.type === 'tf') { const values = { правда: true, да: true, true: true, ложь: false, нет: false, false: false }; if (Object.hasOwn(values, value.toLocaleLowerCase('ru'))) question.answer = values[value.toLocaleLowerCase('ru')]; else lineError(index, 'ответ должен быть «правда» или «ложь»'); continue } if (key === 'если правда' && question.type === 'tf') { question.feedbackTrue = value; continue } if (key === 'если ложь' && question.type === 'tf') { question.feedbackFalse = value; continue } if ((key === 'ответы' || key === 'ответ') && question.type === 'input') { question.answers = value.split('|').map(item => item.trim()).filter(Boolean); continue } if (meta(question, field[1].trim(), value, index)) continue }
+          if (!question.text) { question.text = text; continue } lineError(index, 'не удалось распознать строку внутри вопроса'); continue
+        }
+        if (field && meta(section === 'lesson' ? lesson : course, field[1].trim(), field[2].trim(), index)) continue;
+        lineError(index, 'не удалось распознать строку');
+      }
+      if (!course) return { course: null, errors: ['Добавьте название курса: # Название'] };
+      if (!course.lessons.length) errors.push('Добавьте хотя бы одну тему через ## Название темы');
+      course.lessons.forEach((item, lessonIndex) => { if (!item.questions.length) errors.push(`Тема «${item.title}»: нет вопросов`); item.questions.forEach((itemQuestion, questionIndex) => { const place = `Тема «${item.title}», вопрос ${questionIndex + 1}`; if (!itemQuestion.text) errors.push(`${place}: нет текста вопроса`); if (itemQuestion.type === 'choice') { const correct = itemQuestion.options.filter(option => option.correct); if (itemQuestion.options.length < 2) errors.push(`${place}: нужно хотя бы два варианта`); if (correct.length !== 1) errors.push(`${place}: отметьте ровно один правильный вариант [x]`); itemQuestion.answer = itemQuestion.options.findIndex(option => option.correct); itemQuestion.options.forEach(option => delete option.correct) } if (itemQuestion.type === 'tf' && typeof itemQuestion.answer !== 'boolean') errors.push(`${place}: укажите Ответ: правда или Ответ: ложь`); if (itemQuestion.type === 'input' && !itemQuestion.answers.length) errors.push(`${place}: укажите Ответы:`); if (itemQuestion.type === 'order' && itemQuestion.items.length < 2) errors.push(`${place}: нужно хотя бы два пункта`); if (itemQuestion.type === 'match' && itemQuestion.pairs.length < 2) errors.push(`${place}: нужно хотя бы две пары`) }); item.id = `${slug(item.title)}-${lessonIndex + 1}` });
+      return { course, errors };
+    }
+
+    const source = document.querySelector('#source'), preview = document.querySelector('#preview'), messages = document.querySelector('#messages'), filename = document.querySelector('#filename'), status = document.querySelector('#editStatus');
+    const starter = `# Название квиза
+
+Иконка: 🚀
+Описание: Короткое описание курса для ученика
+ID: demonstration-quiz
+
+## Первая тема
+
+Иконка: 🌟
+
+### Выбор
+
+Выберите правильный вариант:
+
+- [x] Правильный вариант
+  Подсказка: Верно! Здесь можно объяснить, почему этот вариант правильный.
+- [ ] Неправильный вариант
+  Подсказка: Здесь можно дать полезное пояснение к ошибке.
+- [ ] Ещё один вариант
+  Подсказка: Подсказка показывается только после проверки ответа.
+
+Объяснение: Общее объяснение вопроса можно написать отдельной строкой.
+
+### Правда или ложь
+
+Это пример утверждения, которое является правдивым.
+
+Ответ: правда
+Если правда: Отлично! Это правильный ответ.
+Если ложь: Попробуйте ещё раз и обратите внимание на формулировку.
+Объяснение: После проверки здесь появится дополнительное пояснение.
+
+### Ввод
+
+Введите один из допустимых ответов:
+
+Ответы: первый ответ | второй ответ | сокращённый ответ
+Подсказка: Можно перечислить несколько правильных формулировок через вертикальную черту.
+Объяснение: Регистр букв и повторные пробелы не влияют на проверку.
+
+## Вторая тема
+
+Иконка: 🧩
+
+### Порядок
+
+Расположите элементы в правильном порядке:
+
+1. Первый элемент
+2. Второй элемент
+3. Третий элемент
+4. Четвёртый элемент
+
+Объяснение: В документе элементы записываются правильно, а квиз перемешивает их автоматически.
+
+### Пары
+
+Соедините элементы из левого и правого столбцов:
+
+- Первый термин => Первое определение
+- Второй термин => Второе определение
+- Третий термин => Третье определение
+
+Объяснение: Левая и правая части пары разделяются символами =>.
+`;
+    let currentName = 'lesson-example.md', timer = null, lastCourse = null; source.value = starter;
+    function update() { const parsed = parseDocument(source.value); lastCourse = parsed.errors.length ? null : parsed.course; messages.innerHTML = parsed.errors.length ? `<ul class="error">${parsed.errors.map(error => `<li>${escapeHtml(error)}</li>`).join('')}</ul>` : `<p class="ok">Документ корректен: ${parsed.course.lessons.length} тем, ${parsed.course.lessons.reduce((sum, item) => sum + item.questions.length, 0)} вопросов.</p>`; document.querySelector('#exportHtml').disabled = !lastCourse; preview.innerHTML = ''; if (lastCourse) createPlayer(preview, lastCourse, { preview: true }); status.textContent = parsed.errors.length ? `${parsed.errors.length} ошибок` : 'сохранено локально' }
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])) }
+    function download(content, name, type) { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type })); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000) }
+    function standalone(course) {
+      const json = JSON.stringify(course).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+      const scriptOpen = '<scr' + 'ipt>';
+      const scriptClose = '</scr' + 'ipt>';
+      return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(course.title)}</title><style>html,body{margin:0;min-height:100%;background:#f7f7f2}${PLAYER_CSS}</style></head><body><main id="quiz"></main>${scriptOpen}const COURSE=${json};(${createPlayer.toString()})(document.querySelector('#quiz'),COURSE);${scriptClose}</body></html>`;
+    }
+    source.addEventListener('input', () => { status.textContent = 'проверка…'; clearTimeout(timer); timer = setTimeout(update, 250) });
+    document.querySelector('#fileInput').addEventListener('change', event => loadFile(event.target.files[0]));
+    function loadFile(file) { if (!file) return; const reader = new FileReader(); reader.onload = () => { source.value = String(reader.result); currentName = file.name.replace(/\.md$/i, '') + '.md'; filename.textContent = currentName; update() }; reader.onerror = () => { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }; reader.readAsText(file) }
+    const dropZone = document.querySelector('#dropZone');['dragenter', 'dragover'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.add('drop') }));['dragleave', 'drop'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.remove('drop') })); dropZone.addEventListener('drop', event => loadFile(event.dataTransfer.files[0]));
+    document.querySelector('#saveMd').onclick = () => download(source.value, currentName, 'text/markdown;charset=utf-8');
+    document.querySelector('#exportHtml').onclick = () => { if (!lastCourse) return; download(standalone(lastCourse), `${slug(lastCourse.title)}.html`, 'text/html;charset=utf-8') };
+    update();
+</script>
+</body>
+
+</html>
