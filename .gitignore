@@ -1,0 +1,10 @@
+node_modules/
+.npm-cache/
+.playwright-browsers/
+playwright-report/
+test-results/
+.DS_Store
+Thumbs.db
+*.log
+coverage/
+.vscode/
