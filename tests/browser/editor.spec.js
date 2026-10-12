@@ -14,6 +14,18 @@ test('opens with a valid multi-topic starter', async ({ page }) => {
   await expect(page.locator('#exportHtml')).toBeEnabled();
 });
 
+test('offers GitHub and email feedback links', async ({ page }) => {
+  await expect(page.getByRole('link', { name: 'Оставить отзыв на GitHub' })).toHaveAttribute(
+    'href',
+    'https://github.com/inqast/tiqui-quiz/issues/new/choose',
+  );
+  await expect(page.getByRole('link', { name: 'Написать на почту' })).toHaveAttribute(
+    'href',
+    'mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь',
+  );
+  await expect(page.locator('.feedback')).toContainText('не публикуйте персональные данные ребёнка');
+});
+
 test('updates validation and preview when course metadata is removed', async ({ page }) => {
   const source = page.locator('#source');
   const initial = await source.inputValue();

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Написать по электронной почте
+    url: mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь
+    about: Используйте почту, если у вас нет аккаунта GitHub.

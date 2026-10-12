@@ -215,6 +215,35 @@
       font-weight: 700
     }
 
+    .feedback {
+      margin-top: 18px;
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap
+    }
+
+    .feedback-text {
+      flex: 1 1 430px
+    }
+
+    .feedback-text strong,
+    .feedback-text span {
+      display: block
+    }
+
+    .feedback-text span {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 3px
+    }
+
+    .feedback .btn {
+      text-decoration: none;
+      text-align: center
+    }
+
     @media(max-width:850px) {
       .workspace {
         grid-template-columns: 1fr
@@ -269,6 +298,15 @@
       Markdown» или перетащите файл на верхнюю панель. Формат курса, примеры всех видов вопросов и инструкции описаны в
       <a href="https://github.com/inqast/tiqui-quiz#readme" target="_blank" rel="noopener noreferrer">документации проекта</a>.
     </p>
+    <section class="panel feedback" aria-labelledby="feedback-title">
+      <div class="feedback-text">
+        <strong id="feedback-title">Нашли ошибку или придумали улучшение?</strong>
+        <span>Сообщите нам, но не публикуйте персональные данные ребёнка. Для ошибки достаточно минимального примера Markdown.</span>
+      </div>
+      <a class="btn" href="https://github.com/inqast/tiqui-quiz/issues/new/choose" target="_blank"
+        rel="noopener noreferrer">Оставить отзыв на GitHub</a>
+      <a class="btn secondary" href="mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь">Написать на почту</a>
+    </section>
   </main>
   <script>
 /*__TIQUI_BUNDLE__*/

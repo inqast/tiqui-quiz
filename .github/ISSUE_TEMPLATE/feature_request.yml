@@ -1,0 +1,36 @@
+name: Предложить улучшение
+description: Поделитесь идеей для Tiqui Quiz
+title: "[Идея]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за идею. Не публикуйте персональные данные ребёнка или другие конфиденциальные сведения.
+
+  - type: textarea
+    id: need
+    attributes:
+      label: Какую задачу должно решить улучшение?
+      description: Расскажите о ситуации пользователя и существующем затруднении.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Как могло бы работать решение?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Какие альтернативы вы пробовали?
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Проверка перед публикацией
+      options:
+        - label: Я убедился, что обращение не содержит персональных или конфиденциальных данных.
+          required: true
