@@ -1,0 +1,33 @@
+name: Deployed security scan
+
+on:
+  workflow_run:
+    workflows: [Deploy Pages]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployed-security-scan
+  cancel-in-progress: true
+
+jobs:
+  zap-baseline:
+    name: OWASP ZAP baseline
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Scan published application
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: https://inqast.github.io/tiqui-quiz/
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: zap-baseline-report

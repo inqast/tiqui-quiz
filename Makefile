@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install install-node install-browser build check-build test check test-unit test-browser test-browser-ui
+.PHONY: help install install-node install-browser build check-build audit test check test-unit test-browser test-browser-ui
 
 help: ## Показать доступные команды
 	@awk 'BEGIN {FS = ":.*## "; printf "Tiqui Quiz\n\nИспользование:\n  make <цель>\n\nЦели:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -18,6 +18,9 @@ build: ## Собрать автономный quiz.html из src/
 
 check-build: ## Проверить актуальность собранного quiz.html
 	npm run check:build
+
+audit: ## Проверить npm-зависимости на известные уязвимости
+	npm audit --audit-level=high
 
 test: ## Запустить все тесты
 	npm test

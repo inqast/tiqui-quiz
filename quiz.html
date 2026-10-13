@@ -872,7 +872,7 @@
       const scriptClose = '</scr' + 'ipt>';
       return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(course.title)}</title><style>html,body{margin:0;min-height:100%;background:#f7f7f2}${PLAYER_CSS}</style></head><body><main id="quiz"></main>${scriptOpen}const COURSE=${json};(${createPlayer.toString()})(document.querySelector('#quiz'),COURSE);${scriptClose}</body></html>`;
     }
-    source.addEventListener('input', () => { status.textContent = 'проверка…'; clearTimeout(timer); timer = setTimeout(update, 250) });
+    source.addEventListener('input', () => { status.textContent = 'проверка…'; lastCourse = null; document.querySelector('#exportHtml').disabled = true; clearTimeout(timer); timer = setTimeout(update, 250) });
     document.querySelector('#fileInput').addEventListener('change', event => loadFile(event.target.files[0]));
     function loadFile(file) { if (!file) return; const reader = new FileReader(); reader.onload = () => { source.value = String(reader.result); currentName = file.name.replace(/\.md$/i, '') + '.md'; filename.textContent = currentName; update() }; reader.onerror = () => { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }; reader.readAsText(file) }
     const dropZone = document.querySelector('#dropZone');['dragenter', 'dragover'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.add('drop') }));['dragleave', 'drop'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.remove('drop') })); dropZone.addEventListener('drop', event => loadFile(event.dataTransfer.files[0]));
