@@ -86,6 +86,95 @@ document.querySelector('#fileInput').addEventListener('change', event => loadFil
 function loadFile(file) { if (!file) return; const reader = new FileReader(); reader.onload = () => { source.value = String(reader.result); currentName = file.name.replace(/\.md$/i, '') + '.md'; filename.textContent = currentName; update() }; reader.onerror = () => { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }; reader.readAsText(file) }
 const dropZone = document.querySelector('#dropZone');['dragenter', 'dragover'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.add('drop') }));['dragleave', 'drop'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.remove('drop') })); dropZone.addEventListener('drop', event => loadFile(event.dataTransfer.files[0]));
 document.querySelector('#saveMd').onclick = () => download(source.value, currentName, 'text/markdown;charset=utf-8');
+document.querySelector('#clearEditor').onclick = () => {
+  if (!source.value || !window.confirm('Удалить весь текст из редактора? Это действие нельзя отменить.')) return;
+  source.value = '';
+  update();
+  source.focus();
+};
 document.querySelector('#exportHtml').onclick = () => { if (!lastCourse) return; download(standalone(lastCourse), `${slug(lastCourse.title)}.html`, 'text/html;charset=utf-8') };
+
+const promptDialog = document.querySelector('#promptDialog');
+const promptFields = ['#promptTopic', '#promptAudience', '#promptLessons', '#promptQuestions', '#promptDifficulty'].map(selector => document.querySelector(selector));
+const generatedPrompt = document.querySelector('#generatedPrompt');
+const copyPromptStatus = document.querySelector('#copyPromptStatus');
+const boundedNumber = (value, fallback) => Math.min(10, Math.max(1, Number.parseInt(value, 10) || fallback));
+function updateGeneratedPrompt() {
+  const [topic, audience, lessons, questions, difficulty] = promptFields;
+  const courseTopic = topic.value.trim() || '[укажите тему курса]';
+  generatedPrompt.value = `Создай учебный квиз на тему «${courseTopic}» для аудитории: ${audience.value.trim() || 'школьник'}. Сложность: ${difficulty.value}.
+
+Подготовь ${boundedNumber(lessons.value, 3)} темы, примерно по ${boundedNumber(questions.value, 5)} вопросов в каждой. Используй разные типы вопросов и равномерно распредели их по курсу.
+
+Создай готовый файл lesson.md и приложи его к ответу так, чтобы пользователь мог скачать файл. Внутри файла должен находиться только Markdown-документ без вводного текста и служебных комментариев. Он должен строго соответствовать формату Tiqui Quiz:
+
+# Название курса
+Иконка: один подходящий эмодзи
+Описание: краткое описание
+ID: короткий-уникальный-id-латиницей
+
+## Название темы
+Иконка: один подходящий эмодзи
+
+### Выбор
+Текст вопроса
+- [x] Единственный правильный вариант
+  Подсказка: полезное объяснение после проверки
+- [ ] Неправильный вариант
+  Подсказка: почему этот вариант не подходит
+Объяснение: общий полезный факт
+
+### Правда или ложь
+Текст утверждения
+Ответ: правда
+Если правда: пояснение
+Если ложь: пояснение
+Объяснение: общий полезный факт
+
+### Ввод
+Текст вопроса
+Ответы: основной ответ | допустимый вариант
+Подсказка: помощь после проверки
+Объяснение: общий полезный факт
+
+### Порядок
+Текст задания
+1. Первый элемент
+2. Второй элемент
+3. Третий элемент
+Объяснение: почему порядок именно такой
+
+### Пары
+Текст задания
+- Первый термин => Первое соответствие
+- Второй термин => Второе соответствие
+- Третий термин => Третье соответствие
+Объяснение: общий полезный факт
+
+Требования:
+- у вопроса «Выбор» должен быть ровно один ответ [x] и не менее двух вариантов;
+- у «Порядка» и «Пар» должно быть не менее двух элементов;
+- не повторяй варианты, элементы и стороны пар;
+- вопросы и объяснения должны быть точными, понятными и соответствовать возрасту;
+- не используй персональные данные;
+- перед ответом самостоятельно проверь структуру;
+- основной результат ответа — скачиваемый файл lesson.md;
+- если интерфейс не позволяет приложить файл, выведи содержимое целиком в одном блоке кода с языком markdown, не отображай его как обычный форматированный текст и не добавляй текст вне блока.`;
+  copyPromptStatus.textContent = '';
+}
+promptFields.forEach(field => field.addEventListener('input', updateGeneratedPrompt));
+document.querySelector('#openPromptBuilder').onclick = () => { updateGeneratedPrompt(); promptDialog.showModal(); document.querySelector('#promptTopic').focus() };
+document.querySelector('#closePromptBuilder').onclick = () => promptDialog.close();
+promptDialog.addEventListener('click', event => { if (event.target === promptDialog) promptDialog.close() });
+document.querySelector('#copyPrompt').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(generatedPrompt.value);
+  } catch {
+    generatedPrompt.select();
+    document.execCommand('copy');
+    generatedPrompt.setSelectionRange(0, 0);
+  }
+  copyPromptStatus.textContent = 'Скопировано';
+};
 update();
 

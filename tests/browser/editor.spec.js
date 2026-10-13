@@ -14,6 +14,17 @@ test('opens with a valid multi-topic starter', async ({ page }) => {
   await expect(page.locator('#exportHtml')).toBeEnabled();
 });
 
+test('clears the editor after confirmation', async ({ page }) => {
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Очистить редактор' }).click();
+
+  await expect(page.locator('#source')).toHaveValue('');
+  await expect(page.locator('#source')).toBeFocused();
+  await expect(page.locator('#messages')).toContainText('Добавьте название курса');
+  await expect(page.locator('#preview')).toBeEmpty();
+  await expect(page.locator('#exportHtml')).toBeDisabled();
+});
+
 test('offers GitHub and email feedback links', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Оставить отзыв на GitHub' })).toHaveAttribute(
     'href',
@@ -24,6 +35,43 @@ test('offers GitHub and email feedback links', async ({ page }) => {
     'mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь',
   );
   await expect(page.locator('.feedback')).toContainText('не публикуйте персональные данные ребёнка');
+});
+
+test('builds a local prompt and offers AI provider links', async ({ page, context }) => {
+  await page.getByRole('button', { name: 'Создать с помощью ИИ' }).click();
+  const dialog = page.locator('#promptDialog');
+  await expect(dialog).toBeVisible();
+
+  await page.locator('#promptTopic').fill('Древний Рим');
+  await page.locator('#promptAudience').fill('ученик 5 класса');
+  await page.locator('#promptLessons').fill('2');
+  await page.locator('#promptQuestions').fill('4');
+  const prompt = await page.locator('#generatedPrompt').inputValue();
+  expect(prompt).toContain('«Древний Рим»');
+  expect(prompt).toContain('ученик 5 класса');
+  expect(prompt).toContain('2 темы, примерно по 4 вопросов');
+  expect(prompt).toContain('### Пары');
+  expect(prompt).toContain('готовый файл lesson.md');
+  expect(prompt).toContain('в одном блоке кода с языком markdown');
+  await expect(dialog).toContainText('не все провайдеры доступны в России');
+  await expect(dialog).toContainText('Скачайте из ответа файл lesson.md');
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:4173' });
+  await page.getByRole('button', { name: 'Скопировать промпт' }).click();
+  await expect(page.locator('#copyPromptStatus')).toHaveText('Скопировано');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(prompt);
+
+  const providers = [
+    ['DeepSeek', 'https://chat.deepseek.com/'],
+    ['ChatGPT', 'https://chatgpt.com/'],
+    ['Claude', 'https://claude.ai/new'],
+  ];
+  for (const [name, href] of providers) {
+    await expect(page.getByRole('link', { name })).toHaveAttribute('href', href);
+  }
+
+  await page.getByRole('button', { name: 'Закрыть' }).click();
+  await expect(dialog).not.toBeVisible();
 });
 
 test('updates validation and preview when course metadata is removed', async ({ page }) => {

@@ -146,6 +146,25 @@
       color: var(--muted)
     }
 
+    .editor-title {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .clear-editor {
+      border: 0;
+      padding: 2px 0;
+      background: transparent;
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 650
+    }
+
+    .clear-editor:hover {
+      text-decoration: underline
+    }
+
     textarea {
       display: block;
       width: 100%;
@@ -244,6 +263,105 @@
       text-align: center
     }
 
+    dialog {
+      width: min(720px, calc(100% - 32px));
+      max-height: calc(100% - 32px);
+      padding: 0;
+      border: 0;
+      border-radius: 22px;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: 0 24px 80px #10261e55
+    }
+
+    dialog::backdrop {
+      background: #132b2477;
+      backdrop-filter: blur(3px)
+    }
+
+    .prompt-modal {
+      padding: 22px
+    }
+
+    .prompt-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px
+    }
+
+    .prompt-head h2 {
+      margin: 0
+    }
+
+    .prompt-head p {
+      margin: 5px 0 0;
+      color: var(--muted)
+    }
+
+    .close-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 26px;
+      line-height: 1
+    }
+
+    .prompt-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 18px 0
+    }
+
+    .prompt-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-weight: 700
+    }
+
+    .prompt-fields label:first-child {
+      grid-column: 1 / -1
+    }
+
+    .prompt-fields input,
+    .prompt-fields select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+      color: var(--ink)
+    }
+
+    #generatedPrompt {
+      height: 230px;
+      min-height: 160px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfcf8
+    }
+
+    .prompt-actions,
+    .provider-links {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      margin-top: 12px
+    }
+
+    .provider-links a {
+      color: var(--brand-dark);
+      font-weight: 700
+    }
+
+    .prompt-note {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 12px 0 0
+    }
+
     @media(max-width:850px) {
       .workspace {
         grid-template-columns: 1fr
@@ -263,6 +381,14 @@
         align-items: flex-start;
         flex-direction: column
       }
+
+      .prompt-fields {
+        grid-template-columns: 1fr
+      }
+
+      .prompt-fields label:first-child {
+        grid-column: auto
+      }
     }
   </style>
 </head>
@@ -280,13 +406,18 @@
       <label class="file-label">Открыть Markdown<input id="fileInput" type="file"
           accept=".md,text/markdown,text/plain"></label>
       <button class="btn secondary" id="saveMd">Скачать Markdown</button>
+      <button class="btn secondary" id="openPromptBuilder">Создать с помощью ИИ</button>
       <button class="btn" id="exportHtml">Скачать квиз HTML</button>
       <span class="filename" id="filename">lesson-example.md</span>
     </section>
     <div class="messages panel" id="messages" aria-live="polite"></div>
     <section class="workspace">
       <div class="panel editor">
-        <div class="editor-head"><span>Документ курса</span><span class="status" id="editStatus">готов</span></div>
+        <div class="editor-head">
+          <span class="editor-title">Документ курса <button class="clear-editor" id="clearEditor" type="button"
+              aria-label="Очистить редактор">Очистить</button></span>
+          <span class="status" id="editStatus">готов</span>
+        </div>
         <textarea id="source" spellcheck="false" aria-label="Markdown курса"></textarea>
       </div>
       <div class="panel preview">
@@ -308,6 +439,51 @@
       <a class="btn secondary" href="mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь">Написать на почту</a>
     </section>
   </main>
+  <dialog id="promptDialog" aria-labelledby="prompt-title">
+    <div class="prompt-modal">
+      <div class="prompt-head">
+        <div>
+          <h2 id="prompt-title">Промпт для нейросети</h2>
+          <p>Опишите будущий курс, скопируйте промпт и получите готовый файл <code>lesson.md</code>.</p>
+        </div>
+        <button class="close-btn" id="closePromptBuilder" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="prompt-fields">
+        <label>Тема курса
+          <input id="promptTopic" type="text" placeholder="Например: Солнечная система" autocomplete="off">
+        </label>
+        <label>Для кого
+          <input id="promptAudience" type="text" value="школьник 10–12 лет" autocomplete="off">
+        </label>
+        <label>Количество тем
+          <input id="promptLessons" type="number" value="3" min="1" max="10">
+        </label>
+        <label>Вопросов в каждой теме
+          <input id="promptQuestions" type="number" value="5" min="1" max="10">
+        </label>
+        <label>Сложность
+          <select id="promptDifficulty">
+            <option value="простая, с постепенным усложнением">Базовая</option>
+            <option value="средняя, соответствующая возрасту" selected>Средняя</option>
+            <option value="углублённая, но с понятными объяснениями">Углублённая</option>
+          </select>
+        </label>
+      </div>
+      <label for="generatedPrompt"><strong>Готовый промпт</strong></label>
+      <textarea id="generatedPrompt" readonly></textarea>
+      <div class="prompt-actions">
+        <button class="btn" id="copyPrompt" type="button">Скопировать промпт</button>
+        <span class="status" id="copyPromptStatus" role="status" aria-live="polite"></span>
+      </div>
+      <div class="provider-links" aria-label="Открыть нейросеть">
+        <span>Открыть чат:</span>
+        <a href="https://chat.deepseek.com/" target="_blank" rel="noopener noreferrer">DeepSeek</a>
+        <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT</a>
+        <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude</a>
+      </div>
+      <p class="prompt-note">Промпт не отправляется автоматически: вставьте его в открывшийся чат самостоятельно. Скачайте из ответа файл <code>lesson.md</code> и откройте его в Tiqui Quiz. Если чат вернул блок кода вместо файла, используйте кнопку копирования этого блока, чтобы не потерять символы Markdown. Доступность сервисов зависит от страны, в том числе не все провайдеры доступны в России.</p>
+    </div>
+  </dialog>
   <script>
 /*__TIQUI_BUNDLE__*/
   </script>

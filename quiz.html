@@ -146,6 +146,25 @@
       color: var(--muted)
     }
 
+    .editor-title {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .clear-editor {
+      border: 0;
+      padding: 2px 0;
+      background: transparent;
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 650
+    }
+
+    .clear-editor:hover {
+      text-decoration: underline
+    }
+
     textarea {
       display: block;
       width: 100%;
@@ -244,6 +263,105 @@
       text-align: center
     }
 
+    dialog {
+      width: min(720px, calc(100% - 32px));
+      max-height: calc(100% - 32px);
+      padding: 0;
+      border: 0;
+      border-radius: 22px;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: 0 24px 80px #10261e55
+    }
+
+    dialog::backdrop {
+      background: #132b2477;
+      backdrop-filter: blur(3px)
+    }
+
+    .prompt-modal {
+      padding: 22px
+    }
+
+    .prompt-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px
+    }
+
+    .prompt-head h2 {
+      margin: 0
+    }
+
+    .prompt-head p {
+      margin: 5px 0 0;
+      color: var(--muted)
+    }
+
+    .close-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 26px;
+      line-height: 1
+    }
+
+    .prompt-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 18px 0
+    }
+
+    .prompt-fields label {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-weight: 700
+    }
+
+    .prompt-fields label:first-child {
+      grid-column: 1 / -1
+    }
+
+    .prompt-fields input,
+    .prompt-fields select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+      color: var(--ink)
+    }
+
+    #generatedPrompt {
+      height: 230px;
+      min-height: 160px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfcf8
+    }
+
+    .prompt-actions,
+    .provider-links {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      margin-top: 12px
+    }
+
+    .provider-links a {
+      color: var(--brand-dark);
+      font-weight: 700
+    }
+
+    .prompt-note {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 12px 0 0
+    }
+
     @media(max-width:850px) {
       .workspace {
         grid-template-columns: 1fr
@@ -263,6 +381,14 @@
         align-items: flex-start;
         flex-direction: column
       }
+
+      .prompt-fields {
+        grid-template-columns: 1fr
+      }
+
+      .prompt-fields label:first-child {
+        grid-column: auto
+      }
     }
   </style>
 </head>
@@ -280,13 +406,18 @@
       <label class="file-label">Открыть Markdown<input id="fileInput" type="file"
           accept=".md,text/markdown,text/plain"></label>
       <button class="btn secondary" id="saveMd">Скачать Markdown</button>
+      <button class="btn secondary" id="openPromptBuilder">Создать с помощью ИИ</button>
       <button class="btn" id="exportHtml">Скачать квиз HTML</button>
       <span class="filename" id="filename">lesson-example.md</span>
     </section>
     <div class="messages panel" id="messages" aria-live="polite"></div>
     <section class="workspace">
       <div class="panel editor">
-        <div class="editor-head"><span>Документ курса</span><span class="status" id="editStatus">готов</span></div>
+        <div class="editor-head">
+          <span class="editor-title">Документ курса <button class="clear-editor" id="clearEditor" type="button"
+              aria-label="Очистить редактор">Очистить</button></span>
+          <span class="status" id="editStatus">готов</span>
+        </div>
         <textarea id="source" spellcheck="false" aria-label="Markdown курса"></textarea>
       </div>
       <div class="panel preview">
@@ -308,13 +439,58 @@
       <a class="btn secondary" href="mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь">Написать на почту</a>
     </section>
   </main>
+  <dialog id="promptDialog" aria-labelledby="prompt-title">
+    <div class="prompt-modal">
+      <div class="prompt-head">
+        <div>
+          <h2 id="prompt-title">Промпт для нейросети</h2>
+          <p>Опишите будущий курс, скопируйте промпт и получите готовый файл <code>lesson.md</code>.</p>
+        </div>
+        <button class="close-btn" id="closePromptBuilder" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="prompt-fields">
+        <label>Тема курса
+          <input id="promptTopic" type="text" placeholder="Например: Солнечная система" autocomplete="off">
+        </label>
+        <label>Для кого
+          <input id="promptAudience" type="text" value="школьник 10–12 лет" autocomplete="off">
+        </label>
+        <label>Количество тем
+          <input id="promptLessons" type="number" value="3" min="1" max="10">
+        </label>
+        <label>Вопросов в каждой теме
+          <input id="promptQuestions" type="number" value="5" min="1" max="10">
+        </label>
+        <label>Сложность
+          <select id="promptDifficulty">
+            <option value="простая, с постепенным усложнением">Базовая</option>
+            <option value="средняя, соответствующая возрасту" selected>Средняя</option>
+            <option value="углублённая, но с понятными объяснениями">Углублённая</option>
+          </select>
+        </label>
+      </div>
+      <label for="generatedPrompt"><strong>Готовый промпт</strong></label>
+      <textarea id="generatedPrompt" readonly></textarea>
+      <div class="prompt-actions">
+        <button class="btn" id="copyPrompt" type="button">Скопировать промпт</button>
+        <span class="status" id="copyPromptStatus" role="status" aria-live="polite"></span>
+      </div>
+      <div class="provider-links" aria-label="Открыть нейросеть">
+        <span>Открыть чат:</span>
+        <a href="https://chat.deepseek.com/" target="_blank" rel="noopener noreferrer">DeepSeek</a>
+        <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT</a>
+        <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude</a>
+      </div>
+      <p class="prompt-note">Промпт не отправляется автоматически: вставьте его в открывшийся чат самостоятельно. Скачайте из ответа файл <code>lesson.md</code> и откройте его в Tiqui Quiz. Если чат вернул блок кода вместо файла, используйте кнопку копирования этого блока, чтобы не потерять символы Markdown. Доступность сервисов зависит от страны, в том числе не все провайдеры доступны в России.</p>
+    </div>
+  </dialog>
   <script>
     'use strict';
     // Generated from src/. Run make build after changing source files.
     const PLAYER_CSS = `
     :root{--q-bg:#f7f7f2;--q-card:#fff;--q-text:#2b2b2b;--q-muted:#737b78;--q-border:#dfe3e1;--q-green:#58cc02;--q-green-d:#46a302;--q-green-bg:#dfffc8;--q-red:#ff4b4b;--q-red-d:#d83b3b;--q-red-bg:#ffe2e3;--q-blue:#1cb0f6;--q-blue-bg:#ddf4ff;--q-gold:#ffc800}*{box-sizing:border-box}.tq{min-height:100%;background:var(--q-bg);color:var(--q-text);font:18px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}.tq button,.tq input{font:inherit;color:inherit}.qapp{max-width:650px;margin:auto;padding:18px 17px 160px}.home-head{text-align:center;margin:10px 0 22px}.home-head h1{font-size:31px;margin:0 0 5px}.muted{color:var(--q-muted)}.lessons{display:flex;flex-direction:column;gap:11px}.lesson-btn,.opt,.chip,.mbtn{width:100%;display:flex;align-items:center;gap:12px;background:var(--q-card);border:2px solid var(--q-border);border-bottom-width:5px;border-radius:16px;padding:14px;text-align:left;cursor:pointer}.lesson-btn:hover,.opt:hover,.chip:hover,.mbtn:hover{border-color:var(--q-blue)}button:focus-visible,input:focus-visible{outline:3px solid #8bd8ff;outline-offset:2px}.lesson-btn:active,.opt:active,.chip:active,.mbtn:active{transform:translateY(2px);border-bottom-width:3px}.licon{font-size:35px}.ltext{flex:1;display:flex;flex-direction:column}.ltext small{font-size:14px;color:var(--q-muted)}.stars{color:var(--q-gold);white-space:nowrap}.off{color:#d7d7d7}.home-foot{display:flex;justify-content:center;margin-top:18px}.small-btn{border:2px solid var(--q-border);border-radius:11px;background:#fff;padding:7px 12px;color:var(--q-muted)!important;cursor:pointer;font-size:14px}.topbar{display:flex;align-items:center;gap:11px;margin-bottom:23px}.xbtn{border:0;background:none;color:#999;font-size:25px;cursor:pointer}.progress{height:17px;background:#e4e6e5;border-radius:20px;overflow:hidden;flex:1}.progress div{height:100%;background:var(--q-green);transition:width .35s}.combo{min-width:42px;color:#f59500;font-weight:800}.retry{display:inline-block;background:#fff2ce;color:#8a6100;padding:4px 9px;border-radius:8px;font-size:14px}.qlabel{text-transform:uppercase;letter-spacing:.04em;color:var(--q-muted);font-weight:700;font-size:14px;margin-top:8px}.qtext{font-size:25px;font-weight:650;margin:7px 0 20px}.options,.bank,.slot{display:flex;flex-direction:column;gap:10px}.key{border:2px solid var(--q-border);border-radius:8px;min-width:29px;height:29px;display:grid;place-items:center;font-size:14px;color:var(--q-muted)}.selected{border-color:var(--q-blue)!important;background:var(--q-blue-bg)!important}.right{border-color:var(--q-green)!important;background:var(--q-green-bg)!important}.wrong{border-color:var(--q-red)!important;background:var(--q-red-bg)!important}.tinput{width:100%;padding:15px;border:2px solid var(--q-border);border-radius:14px;background:#fff;font-size:22px}.order{display:flex;flex-direction:column;gap:17px}.slot{min-height:75px;border:2px dashed #c8cfcc;border-radius:15px;padding:9px}.placeholder{text-align:center;color:var(--q-muted);padding:15px}.chip.used{visibility:hidden}.num{background:var(--q-blue);color:#fff;border-radius:50%;min-width:27px;height:27px;display:grid;place-items:center;font-size:14px}.match{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mcol{display:flex;flex-direction:column;gap:9px}.mbtn{justify-content:center;text-align:center;min-height:62px;font-size:16px}.mbtn.done{opacity:.45;background:var(--q-green-bg);border-color:var(--q-green)}.shake{animation:qshake .3s}.qfooter{position:sticky;bottom:0;background:var(--q-bg);border-top:2px solid var(--q-border);padding:13px 17px;z-index:2}.qfooter.good{background:var(--q-green-bg)}.qfooter.bad{background:var(--q-red-bg)}.qfooter-inner{max-width:650px;margin:auto}.fb{margin-bottom:10px}.fb-title{font-size:21px;font-weight:850}.good .fb-title{color:#378400}.bad .fb-title{color:#b82f2f}.fb-ans,.fb-explain{margin-top:4px}.fb-explain{font-size:16px;opacity:.85}.big-btn{width:100%;border:0;border-bottom:5px solid var(--q-green-d);border-radius:14px;padding:14px;background:var(--q-green);color:#fff!important;font-weight:850;text-transform:uppercase;cursor:pointer}.big-btn.red{background:var(--q-red);border-bottom-color:var(--q-red-d)}.big-btn.ghost{background:#fff;color:var(--q-blue)!important;border:2px solid var(--q-border);border-bottom-width:5px}.big-btn:disabled{background:#ddd;border-color:#c5c5c5;color:#999!important;cursor:default}.end{text-align:center;padding-top:25px}.end-emoji{font-size:68px}.end .stars{font-size:42px}.stats{display:flex;justify-content:center;gap:10px;margin:18px 0}.stats div{background:#fff;border:2px solid var(--q-border);border-radius:14px;padding:10px 16px}.stats b{font-size:25px;display:block}.stats small{font-size:13px;color:var(--q-muted)}.end-btns{display:flex;flex-direction:column;gap:10px}@keyframes qshake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}@media(max-width:500px){.qapp{padding-left:12px;padding-right:12px}.qtext{font-size:22px}.match{grid-template-columns:1fr 1fr}.mbtn{font-size:14px;padding:9px}.stars{font-size:16px}}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
     `;
-    
+
     function createPlayer(host, course, options = {}) {
       const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
       const shuffle = items => { const copy = items.slice(); for (let i = copy.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[copy[i], copy[j]] = [copy[j], copy[i]] } return copy };
@@ -345,7 +521,7 @@
       host.onkeydown = event => { if (!session || event.key !== 'Enter') return; if (document.activeElement?.tagName === 'INPUT') return; const nextButton = footerInner.querySelector('.big-btn:not(:disabled)'); if (nextButton) { event.preventDefault(); nextButton.click() } };
       home();
     }
-    
+
     function slug(value) { return String(value).toLocaleLowerCase('ru').normalize('NFKC').replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'quiz' }
     function parseDocument(source) {
       const lines = source.replace(/\r\n?/g, '\n').split('\n');
@@ -465,75 +641,75 @@
       });
       return { course, errors };
     }
-    
+
     const playerStyle = document.createElement('style');
     playerStyle.textContent = PLAYER_CSS;
     document.head.append(playerStyle);
-    
+
     const source = document.querySelector('#source'), preview = document.querySelector('#preview'), messages = document.querySelector('#messages'), filename = document.querySelector('#filename'), status = document.querySelector('#editStatus');
     const starter = `# Название квиза
-    
+
     Иконка: 🚀
     Описание: Короткое описание курса для ученика
     ID: demonstration-quiz
-    
+
     ## Первая тема
-    
+
     Иконка: 🌟
-    
+
     ### Выбор
-    
+
     Выберите правильный вариант:
-    
+
     - [x] Правильный вариант
       Подсказка: Верно! Здесь можно объяснить, почему этот вариант правильный.
     - [ ] Неправильный вариант
       Подсказка: Здесь можно дать полезное пояснение к ошибке.
     - [ ] Ещё один вариант
       Подсказка: Подсказка показывается только после проверки ответа.
-    
+
     Объяснение: Общее объяснение вопроса можно написать отдельной строкой.
-    
+
     ### Правда или ложь
-    
+
     Это пример утверждения, которое является правдивым.
-    
+
     Ответ: правда
     Если правда: Отлично! Это правильный ответ.
     Если ложь: Попробуйте ещё раз и обратите внимание на формулировку.
     Объяснение: После проверки здесь появится дополнительное пояснение.
-    
+
     ### Ввод
-    
+
     Введите один из допустимых ответов:
-    
+
     Ответы: первый ответ | второй ответ | сокращённый ответ
     Подсказка: Можно перечислить несколько правильных формулировок через вертикальную черту.
     Объяснение: Регистр букв и повторные пробелы не влияют на проверку.
-    
+
     ## Вторая тема
-    
+
     Иконка: 🧩
-    
+
     ### Порядок
-    
+
     Расположите элементы в правильном порядке:
-    
+
     1. Первый элемент
     2. Второй элемент
     3. Третий элемент
     4. Четвёртый элемент
-    
+
     Объяснение: В документе элементы записываются правильно, а квиз перемешивает их автоматически.
-    
+
     ### Пары
-    
+
     Соедините элементы из левого и правого столбцов:
-    
+
     - Первый термин => Первое определение
     - Второй термин => Второе определение
     - Третий термин => Третье определение
-    
+
     Объяснение: Левая и правая части пары разделяются символами =>.
     `;
     let currentName = 'lesson-example.md', timer = null, lastCourse = null; source.value = starter;
@@ -551,7 +727,96 @@
     function loadFile(file) { if (!file) return; const reader = new FileReader(); reader.onload = () => { source.value = String(reader.result); currentName = file.name.replace(/\.md$/i, '') + '.md'; filename.textContent = currentName; update() }; reader.onerror = () => { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }; reader.readAsText(file) }
     const dropZone = document.querySelector('#dropZone');['dragenter', 'dragover'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.add('drop') }));['dragleave', 'drop'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.remove('drop') })); dropZone.addEventListener('drop', event => loadFile(event.dataTransfer.files[0]));
     document.querySelector('#saveMd').onclick = () => download(source.value, currentName, 'text/markdown;charset=utf-8');
+    document.querySelector('#clearEditor').onclick = () => {
+      if (!source.value || !window.confirm('Удалить весь текст из редактора? Это действие нельзя отменить.')) return;
+      source.value = '';
+      update();
+      source.focus();
+    };
     document.querySelector('#exportHtml').onclick = () => { if (!lastCourse) return; download(standalone(lastCourse), `${slug(lastCourse.title)}.html`, 'text/html;charset=utf-8') };
+
+    const promptDialog = document.querySelector('#promptDialog');
+    const promptFields = ['#promptTopic', '#promptAudience', '#promptLessons', '#promptQuestions', '#promptDifficulty'].map(selector => document.querySelector(selector));
+    const generatedPrompt = document.querySelector('#generatedPrompt');
+    const copyPromptStatus = document.querySelector('#copyPromptStatus');
+    const boundedNumber = (value, fallback) => Math.min(10, Math.max(1, Number.parseInt(value, 10) || fallback));
+    function updateGeneratedPrompt() {
+      const [topic, audience, lessons, questions, difficulty] = promptFields;
+      const courseTopic = topic.value.trim() || '[укажите тему курса]';
+      generatedPrompt.value = `Создай учебный квиз на тему «${courseTopic}» для аудитории: ${audience.value.trim() || 'школьник'}. Сложность: ${difficulty.value}.
+
+    Подготовь ${boundedNumber(lessons.value, 3)} темы, примерно по ${boundedNumber(questions.value, 5)} вопросов в каждой. Используй разные типы вопросов и равномерно распредели их по курсу.
+
+    Создай готовый файл lesson.md и приложи его к ответу так, чтобы пользователь мог скачать файл. Внутри файла должен находиться только Markdown-документ без вводного текста и служебных комментариев. Он должен строго соответствовать формату Tiqui Quiz:
+
+    # Название курса
+    Иконка: один подходящий эмодзи
+    Описание: краткое описание
+    ID: короткий-уникальный-id-латиницей
+
+    ## Название темы
+    Иконка: один подходящий эмодзи
+
+    ### Выбор
+    Текст вопроса
+    - [x] Единственный правильный вариант
+      Подсказка: полезное объяснение после проверки
+    - [ ] Неправильный вариант
+      Подсказка: почему этот вариант не подходит
+    Объяснение: общий полезный факт
+
+    ### Правда или ложь
+    Текст утверждения
+    Ответ: правда
+    Если правда: пояснение
+    Если ложь: пояснение
+    Объяснение: общий полезный факт
+
+    ### Ввод
+    Текст вопроса
+    Ответы: основной ответ | допустимый вариант
+    Подсказка: помощь после проверки
+    Объяснение: общий полезный факт
+
+    ### Порядок
+    Текст задания
+    1. Первый элемент
+    2. Второй элемент
+    3. Третий элемент
+    Объяснение: почему порядок именно такой
+
+    ### Пары
+    Текст задания
+    - Первый термин => Первое соответствие
+    - Второй термин => Второе соответствие
+    - Третий термин => Третье соответствие
+    Объяснение: общий полезный факт
+
+    Требования:
+    - у вопроса «Выбор» должен быть ровно один ответ [x] и не менее двух вариантов;
+    - у «Порядка» и «Пар» должно быть не менее двух элементов;
+    - не повторяй варианты, элементы и стороны пар;
+    - вопросы и объяснения должны быть точными, понятными и соответствовать возрасту;
+    - не используй персональные данные;
+    - перед ответом самостоятельно проверь структуру;
+    - основной результат ответа — скачиваемый файл lesson.md;
+    - если интерфейс не позволяет приложить файл, выведи содержимое целиком в одном блоке кода с языком markdown, не отображай его как обычный форматированный текст и не добавляй текст вне блока.`;
+      copyPromptStatus.textContent = '';
+    }
+    promptFields.forEach(field => field.addEventListener('input', updateGeneratedPrompt));
+    document.querySelector('#openPromptBuilder').onclick = () => { updateGeneratedPrompt(); promptDialog.showModal(); document.querySelector('#promptTopic').focus() };
+    document.querySelector('#closePromptBuilder').onclick = () => promptDialog.close();
+    promptDialog.addEventListener('click', event => { if (event.target === promptDialog) promptDialog.close() });
+    document.querySelector('#copyPrompt').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(generatedPrompt.value);
+      } catch {
+        generatedPrompt.select();
+        document.execCommand('copy');
+        generatedPrompt.setSelectionRange(0, 0);
+      }
+      copyPromptStatus.textContent = 'Скопировано';
+    };
     update();
   </script>
 </body>

@@ -25,7 +25,7 @@ function removeModuleSyntax(source) {
 }
 
 function indent(source) {
-  return source.split('\n').map(line => `    ${line}`).join('\n');
+  return source.split('\n').map(line => line ? `    ${line}` : '').join('\n');
 }
 
 const bundle = [playerSource, parserSource, appSource]
