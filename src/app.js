@@ -6,6 +6,14 @@ playerStyle.textContent = PLAYER_CSS;
 document.head.append(playerStyle);
 
 const source = document.querySelector('#source'), preview = document.querySelector('#preview'), messages = document.querySelector('#messages'), filename = document.querySelector('#filename'), status = document.querySelector('#editStatus');
+const workspace = document.querySelector('.workspace'), editorTab = document.querySelector('#editorTab'), previewTab = document.querySelector('#previewTab');
+function setMobileView(view) {
+  workspace.dataset.mobileView = view;
+  editorTab.setAttribute('aria-selected', String(view === 'editor'));
+  previewTab.setAttribute('aria-selected', String(view === 'preview'));
+}
+editorTab.onclick = () => setMobileView('editor');
+previewTab.onclick = () => setMobileView('preview');
 const starter = `# Название квиза
 
 Иконка: 🚀

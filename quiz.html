@@ -127,6 +127,10 @@
       margin-top: 18px
     }
 
+    .mobile-tabs {
+      display: none
+    }
+
     .editor {
       overflow: hidden
     }
@@ -363,8 +367,44 @@
     }
 
     @media(max-width:850px) {
+      .shell {
+        padding: 20px 14px 32px
+      }
+
       .workspace {
-        grid-template-columns: 1fr
+        display: block;
+        margin-top: 10px
+      }
+
+      .mobile-tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px;
+        margin-top: 16px;
+        padding: 5px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #e3eae6
+      }
+
+      .mobile-tab {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 750
+      }
+
+      .mobile-tab[aria-selected="true"] {
+        background: var(--paper);
+        color: var(--ink);
+        box-shadow: 0 2px 8px #17382b14
+      }
+
+      .workspace[data-mobile-view="editor"] .preview,
+      .workspace[data-mobile-view="preview"] .editor {
+        display: none
       }
 
       .filename {
@@ -373,8 +413,9 @@
       }
 
       .preview-box,
-      textarea {
-        height: 620px
+      #source {
+        height: min(62vh, 560px);
+        min-height: 420px
       }
 
       .mast {
@@ -388,6 +429,101 @@
 
       .prompt-fields label:first-child {
         grid-column: auto
+      }
+    }
+
+    @media(max-width:560px) {
+      .mast {
+        margin-bottom: 16px
+      }
+
+      .brand {
+        font-size: 23px
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 12px;
+        gap: 8px
+      }
+
+      .toolbar .btn,
+      .toolbar .file-label {
+        width: 100%;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 9px;
+        text-align: center;
+        line-height: 1.2
+      }
+
+      .filename {
+        grid-column: 1 / -1;
+        padding: 2px 3px 0;
+        overflow-wrap: anywhere
+      }
+
+      .messages {
+        padding: 0 14px
+      }
+
+      .editor-head,
+      .preview-head {
+        min-height: 54px;
+        padding: 11px 13px;
+        gap: 8px
+      }
+
+      .editor-title {
+        gap: 7px
+      }
+
+      .status {
+        text-align: right;
+        line-height: 1.2
+      }
+
+      #source {
+        padding: 14px;
+        font-size: 13px
+      }
+
+      .note {
+        margin: 15px 3px 0
+      }
+
+      .feedback {
+        padding: 15px
+      }
+
+      .feedback .btn {
+        width: 100%
+      }
+
+      dialog {
+        width: calc(100% - 16px);
+        max-height: calc(100% - 16px);
+        border-radius: 18px
+      }
+
+      .prompt-modal {
+        padding: 16px
+      }
+
+      .prompt-head h2 {
+        font-size: 21px
+      }
+
+      #generatedPrompt {
+        height: 34vh;
+        min-height: 190px
+      }
+
+      .prompt-actions .btn {
+        width: 100%
       }
     }
   </style>
@@ -411,8 +547,14 @@
       <span class="filename" id="filename">lesson-example.md</span>
     </section>
     <div class="messages panel" id="messages" aria-live="polite"></div>
-    <section class="workspace">
-      <div class="panel editor">
+    <div class="mobile-tabs" role="tablist" aria-label="Рабочая область">
+      <button class="mobile-tab" id="editorTab" type="button" role="tab" aria-selected="true"
+        aria-controls="editorPanel">Редактор</button>
+      <button class="mobile-tab" id="previewTab" type="button" role="tab" aria-selected="false"
+        aria-controls="previewPanel">Предпросмотр</button>
+    </div>
+    <section class="workspace" data-mobile-view="editor">
+      <div class="panel editor" id="editorPanel" role="tabpanel" aria-labelledby="editorTab">
         <div class="editor-head">
           <span class="editor-title">Документ курса <button class="clear-editor" id="clearEditor" type="button"
               aria-label="Очистить редактор">Очистить</button></span>
@@ -420,7 +562,7 @@
         </div>
         <textarea id="source" spellcheck="false" aria-label="Markdown курса"></textarea>
       </div>
-      <div class="panel preview">
+      <div class="panel preview" id="previewPanel" role="tabpanel" aria-labelledby="previewTab">
         <div class="preview-head"><span>Предпросмотр</span><span class="status">прогресс здесь тестовый</span></div>
         <div class="preview-box" id="preview"></div>
       </div>
@@ -647,6 +789,14 @@
     document.head.append(playerStyle);
 
     const source = document.querySelector('#source'), preview = document.querySelector('#preview'), messages = document.querySelector('#messages'), filename = document.querySelector('#filename'), status = document.querySelector('#editStatus');
+    const workspace = document.querySelector('.workspace'), editorTab = document.querySelector('#editorTab'), previewTab = document.querySelector('#previewTab');
+    function setMobileView(view) {
+      workspace.dataset.mobileView = view;
+      editorTab.setAttribute('aria-selected', String(view === 'editor'));
+      previewTab.setAttribute('aria-selected', String(view === 'preview'));
+    }
+    editorTab.onclick = () => setMobileView('editor');
+    previewTab.onclick = () => setMobileView('preview');
     const starter = `# Название квиза
 
     Иконка: 🚀

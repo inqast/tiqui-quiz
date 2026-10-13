@@ -25,6 +25,25 @@ test('clears the editor after confirmation', async ({ page }) => {
   await expect(page.locator('#exportHtml')).toBeDisabled();
 });
 
+test('uses tabs without horizontal overflow on a mobile screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await expect(page.locator('#editorTab')).toBeVisible();
+  await expect(page.locator('#editorPanel')).toBeVisible();
+  await expect(page.locator('#previewPanel')).not.toBeVisible();
+
+  await page.locator('#previewTab').click();
+  await expect(page.locator('#previewPanel')).toBeVisible();
+  await expect(page.locator('#editorPanel')).not.toBeVisible();
+  await expect(page.locator('#previewTab')).toHaveAttribute('aria-selected', 'true');
+
+  const viewport = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(viewport.scrollWidth).toBe(viewport.clientWidth);
+});
+
 test('offers GitHub and email feedback links', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Оставить отзыв на GitHub' })).toHaveAttribute(
     'href',
