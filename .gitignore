@@ -9,3 +9,4 @@ Thumbs.db
 coverage/
 .vscode/
 _site/
+.serena
