@@ -88,7 +88,10 @@ ID: demonstration-quiz
 
 Объяснение: Левая и правая части пары разделяются символами =>.
 `;
-let currentName = 'lesson-example.md', timer = null, lastCourse = null, lastOutline = [], registry = createMediaRegistry(), activeOperation = null, pendingOwner = null;
+const mediaLimits = window.__TIQUI_TEST_LIMITS;
+const confirmationThreshold = window.__TIQUI_CONFIRM_THRESHOLD ?? 250 * 1024 * 1024;
+const createRegistry = () => createMediaRegistry(mediaLimits ? { limits: mediaLimits } : undefined);
+let currentName = 'lesson-example.md', timer = null, lastCourse = null, lastOutline = [], registry = createRegistry(), activeOperation = null, pendingOwner = null, sourceRevision = 0;
 source.value = starter;
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])) }
 function humanBytes(bytes) { if (bytes < 1024) return `${bytes} Б`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} КБ`; return `${(bytes / 1024 ** 2).toFixed(1)} МБ` }
@@ -108,7 +111,28 @@ function renderPreview() {
   destroyPreview();
   if (lastCourse) createPlayer(preview, lastCourse, { preview: true, resolveMedia: slot => registry.createPreviewUrl(slot.id).value || null });
 }
+function currentOwner(expected, revision) {
+  if (revision !== sourceRevision) return null;
+  const parsed = parseDocument(source.value);
+  if (parsed.errors.length) return null;
+  const owner = owners(parsed.course).find(item => item.key === expected.key);
+  if (!owner || owner.anchor.line !== expected.anchor.line || owner.anchor.heading !== expected.anchor.heading) return null;
+  return owner;
+}
+function attachToCurrentOwner(expected, revision, file) {
+  const owner = currentOwner(expected, revision);
+  if (!owner?.media || owner.media.id !== expected.media?.id || owner.media.kind !== expected.media?.kind) {
+    return { ok: false, errors: [{ message: 'Шаблон изменился. Выберите медиаслот заново.' }] };
+  }
+  return registry.attach(owner.media, file);
+}
+function pruneUnreferencedAssets(course) {
+  const referenced = new Set(owners(course).flatMap(owner => owner.media ? [owner.media.id] : []));
+  for (const asset of assets()) if (!referenced.has(asset.slotId)) registry.remove(asset.slotId);
+}
+
 function renderOutline(valid) {
+  const revision = sourceRevision;
   mediaTotal.textContent = humanBytes(assets().reduce((sum, asset) => sum + asset.size, 0));
   mediaPanelStatus.textContent = valid ? '' : 'Исправьте шаблон: медиаслоты временно доступны только для просмотра.';
   mediaOutline.replaceChildren();
@@ -116,7 +140,7 @@ function renderOutline(valid) {
     const box = document.createElement('section'); box.className = 'media-owner'; box.dataset.ownerKey = owner.key;
     const head = document.createElement('div'); head.className = 'media-owner-head';
     const title = document.createElement('strong'); title.textContent = owner.title;
-    const add = document.createElement('button'); add.className = 'btn secondary'; add.type = 'button'; add.textContent = owner.media ? 'Изменить медиа' : 'Добавить медиа'; add.disabled = !valid; add.onclick = () => openMediaDialog(owner);
+    const add = document.createElement('button'); add.className = 'btn secondary'; add.type = 'button'; add.textContent = owner.media ? 'Изменить медиа' : 'Добавить медиа'; add.disabled = !valid; add.onclick = () => openMediaDialog(owner, revision);
     head.append(title, add); box.append(head);
     if (owner.media) {
       const asset = registry.get(owner.media.id).value;
@@ -126,9 +150,9 @@ function renderOutline(valid) {
       const state = document.createElement('span'); state.textContent = asset ? `${asset.filename} · ${humanBytes(asset.size)}` : 'Файл не выбран';
       const input = document.createElement('input'); input.type = 'file'; input.disabled = !valid; input.accept = acceptFor(owner.media.kind);
       const error = document.createElement('p'); error.className = 'media-error';
-      input.onchange = () => { const result = registry.attach(owner.media, input.files[0]); error.textContent = result.ok ? '' : result.errors.map(item => item.message).join(' '); if (result.ok) update() };
+      input.onchange = () => { const result = attachToCurrentOwner(owner, revision, input.files[0]); error.textContent = result.ok ? '' : result.errors.map(item => item.message).join(' '); if (result.ok) update() };
       const remove = document.createElement('button'); remove.className = 'btn secondary'; remove.type = 'button'; remove.textContent = 'Удалить'; remove.disabled = !valid;
-      remove.onclick = () => { destroyPreview(); registry.remove(owner.media.id); source.value = removeMediaBlock(source.value, owner.anchor); update() };
+      remove.onclick = () => { const current = currentOwner(owner, revision); if (!current?.media) return; destroyPreview(); registry.remove(current.media.id); source.value = removeMediaBlock(source.value, current.anchor); sourceRevision++; update() };
       row.append(state, input, remove); slot.append(description, row, error); box.append(slot);
     }
     mediaOutline.append(box);
@@ -144,28 +168,31 @@ function update() {
   status.textContent = valid ? 'сохранено локально' : `${parsed.errors.length} ошибок`;
 }
 function acceptFor(kind) { return kind === 'image' ? '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp' : kind === 'audio' ? '.mp3,.m4a,audio/mpeg,audio/mp4' : '.mp4,video/mp4' }
-function openMediaDialog(owner) {
-  if (!lastCourse) return;
-  pendingOwner = owner; mediaKind.value = owner.media?.kind || 'image'; mediaDescription.value = owner.media?.description || ''; mediaFile.value = ''; mediaDialogError.textContent = ''; mediaFile.accept = acceptFor(mediaKind.value); mediaDialog.showModal();
+function openMediaDialog(owner, revision) {
+  if (!currentOwner(owner, revision)) return;
+  pendingOwner = { owner, revision };
+  mediaKind.value = owner.media?.kind || 'image'; mediaDescription.value = owner.media?.description || ''; mediaFile.value = ''; mediaDialogError.textContent = ''; mediaFile.accept = acceptFor(mediaKind.value); mediaDialog.showModal();
 }
 mediaKind.onchange = () => { mediaFile.accept = acceptFor(mediaKind.value) };
 document.querySelector('#confirmMedia').onclick = () => {
   if (!pendingOwner || !lastCourse) return;
+  const current = currentOwner(pendingOwner.owner, pendingOwner.revision);
+  if (!current) { mediaDialogError.textContent = 'Шаблон изменился. Выберите медиаслот заново.'; return }
   const description = mediaDescription.value.trim(), file = mediaFile.files[0];
   if (!description) { mediaDialogError.textContent = 'Добавьте описание медиа.'; return }
   if (!file) { mediaDialogError.textContent = 'Выберите локальный файл.'; return }
-  const base = slug(pendingOwner.title.replace(/^(Тема|Вопрос \d+):\s*/, '')) || 'media';
-  const slot = { id: pendingOwner.media?.id || `${base}-media`, kind: mediaKind.value, description };
+  const base = slug(current.title.replace(/^(Тема|Вопрос \d+):\s*/, '')) || 'media';
+  const slot = { id: current.media?.id || `${base}-media`, kind: mediaKind.value, description };
   const result = registry.attach(slot, file);
   if (!result.ok) { mediaDialogError.textContent = result.errors.map(item => item.message).join(' '); return }
-  source.value = upsertMediaBlock(source.value, pendingOwner.anchor, slot); pendingOwner = null; mediaDialog.close(); update();
+  source.value = upsertMediaBlock(source.value, current.anchor, slot); sourceRevision++; pendingOwner = null; mediaDialog.close(); update();
 };
-source.addEventListener('input', () => { status.textContent = 'проверка…'; lastCourse = null; exportButton.disabled = true; clearTimeout(timer); timer = setTimeout(update, 250) });
+source.addEventListener('input', () => { sourceRevision++; status.textContent = 'проверка…'; lastCourse = null; pendingOwner = null; if (mediaDialog.open) mediaDialog.close(); exportButton.disabled = true; renderOutline(false); clearTimeout(timer); timer = setTimeout(update, 250) });
 async function importTemplate(file) {
   if (!file) return;
   try {
     const text = await file.text();
-    replaceRegistry(createMediaRegistry()); source.value = text; currentName = file.name.replace(/\\.md$/i, '') + '.md'; filename.textContent = currentName; update();
+    replaceRegistry(createRegistry()); source.value = text; sourceRevision++; currentName = file.name.replace(/\\.md$/i, '') + '.md'; filename.textContent = currentName; update();
   } catch { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }
 }
 document.querySelector('#fileInput').addEventListener('change', event => importTemplate(event.target.files[0]));
@@ -176,7 +203,7 @@ dropZone.addEventListener('drop', event => importTemplate(event.dataTransfer.fil
 document.querySelector('#saveMd').onclick = () => downloadText(source.value, currentName, 'text/markdown;charset=utf-8');
 document.querySelector('#clearEditor').onclick = () => {
   if (!source.value || !window.confirm('Удалить весь текст из редактора? Это действие нельзя отменить.')) return;
-  replaceRegistry(createMediaRegistry()); source.value = ''; currentName = 'lesson.md'; filename.textContent = currentName; update(); source.focus();
+  replaceRegistry(createRegistry()); source.value = ''; sourceRevision++; currentName = 'lesson.md'; filename.textContent = currentName; update(); source.focus();
 };
 function startOperation(label) {
   if (activeOperation) return null;
@@ -191,27 +218,43 @@ document.querySelector('#cancelOperation').onclick = () => { const controller = 
 async function runOperation(label, task, success) {
   const controller = startOperation(label); if (!controller) return;
   await new Promise(resolve => setTimeout(resolve, 0));
-  const result = await task(controller.signal, progress => { if (progress.total) { operationBar.max = progress.total; operationBar.value = progress.completed } });
-  if (result.ok && !controller.signal.aborted) success(result.value);
-  else if (!controller.signal.aborted) document.querySelector('#projectStatus').textContent = `${label.startsWith('Откры') ? 'Не удалось открыть проект' : 'Операция не выполнена'}: ${result.errors?.[0]?.message || 'неизвестная ошибка'}`;
-  finishOperation(controller);
+  try {
+    const result = await task(controller.signal, progress => {
+      if (activeOperation === controller && progress.total) { operationBar.max = progress.total; operationBar.value = progress.completed }
+    });
+    if (activeOperation !== controller || controller.signal.aborted) return;
+    if (result.ok) success(result.value);
+    else document.querySelector('#projectStatus').textContent = `${label.startsWith('Откры') ? 'Не удалось открыть проект' : 'Операция не выполнена'}: ${result.errors?.[0]?.message || 'неизвестная ошибка'}`;
+  } catch (error) {
+    if (activeOperation === controller && !controller.signal.aborted) document.querySelector('#projectStatus').textContent = `${label.startsWith('Откры') ? 'Не удалось открыть проект' : 'Операция не выполнена'}: ${error?.message || 'неизвестная ошибка'}`;
+  } finally {
+    finishOperation(controller);
+  }
 }
-document.querySelector('#saveProject').onclick = () => runOperation('Сохранение проекта…', (signal, onProgress) => projectPackage.saveProject({ source: source.value, course: lastCourse, registry }, { signal, onProgress }), blob => downloadBlob(blob, `${lastCourse?.id || slug(currentName.replace(/\\.md$/i, '')) || 'course'}.tiqui`));
+document.querySelector('#saveProject').onclick = () => {
+  const parsed = parseDocument(source.value);
+  if (parsed.errors.length) return;
+  pruneUnreferencedAssets(parsed.course);
+  update();
+  runOperation('Сохранение проекта…', (signal, onProgress) => projectPackage.saveProject({ source: source.value, course: parsed.course, registry }, { signal, onProgress }), blob => downloadBlob(blob, `${parsed.course.id || slug(currentName.replace(/\\.md$/i, '')) || 'course'}.tiqui`));
+};
 document.querySelector('#projectInput').addEventListener('change', event => {
   const file = event.target.files[0]; event.target.value = ''; if (!file) return;
   runOperation('Открытие проекта…', (signal, onProgress) => projectPackage.openProject(file, { signal, onProgress }), candidate => {
     const parsed = parseDocument(candidate.source);
     if (parsed.errors.length) { document.querySelector('#projectStatus').textContent = 'Не удалось открыть проект: шаблон повреждён.'; return }
-    const next = createMediaRegistry(), candidateOwners = owners(parsed.course);
+    const next = createRegistry(), candidateOwners = owners(parsed.course);
     for (const asset of candidate.assets) {
       const slot = candidateOwners.find(owner => owner.media?.id === asset.slotId)?.media;
       if (!slot || !next.attach(slot, new File([asset.blob], asset.filename, { type: asset.mimeType })).ok) { next.dispose(); document.querySelector('#projectStatus').textContent = 'Не удалось открыть проект: медиа повреждено.'; return }
     }
-    replaceRegistry(next); source.value = candidate.source; currentName = `${slug(parsed.course.title) || 'course'}.md`; filename.textContent = currentName; update();
+    replaceRegistry(next); source.value = candidate.source; sourceRevision++; currentName = `${slug(parsed.course.title) || 'course'}.md`; filename.textContent = currentName; update();
   });
 });
 exportButton.onclick = () => {
   if (!lastCourse || !readiness().ok) return;
+  const total = assets().reduce((sum, asset) => sum + asset.size, 0);
+  if (total > confirmationThreshold && !window.confirm('Медиа весят больше 250 МБ. Подготовить большой архив для ученика?')) return;
   runOperation('Подготовка квиза…', (signal, onProgress) => {
     const paths = Object.fromEntries(assets().map(asset => [asset.slotId, `media/${asset.filename}`]));
     return projectPackage.exportStudentCourse({ course: lastCourse, registry, indexHtml: createStudentHtml(lastCourse, paths) }, { signal, onProgress });

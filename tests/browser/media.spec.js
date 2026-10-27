@@ -151,3 +151,79 @@ test('shows cancellable busy state and prevents double project actions', async (
   await page.getByRole('button', { name: 'Отменить операцию' }).click();
   await expect(page.locator('#operationProgress')).toBeHidden();
 });
+
+test('invalidates stale media controls synchronously when the template changes', async ({ page }) => {
+  await page.locator('#source').fill(mediaCourse);
+  const stale = await page.locator('[data-slot-id="intro-image"] input[type=file]').elementHandle();
+  const disabledImmediately = await page.evaluate(() => {
+    const source = document.querySelector('#source');
+    source.value = source.value.replace('## Тема с медиа', '## Переименованная тема');
+    source.dispatchEvent(new Event('input', { bubbles: true }));
+    return document.querySelector('[data-slot-id="intro-image"] input[type=file]').disabled;
+  });
+  expect(disabledImmediately).toBe(true);
+  await stale.setInputFiles(image);
+  await expect(page.locator('#mediaTotal')).toHaveText('0 Б');
+});
+
+test('enforces exact media and project size boundaries through the UI', async ({ page }) => {
+  await page.addInitScript(() => { window.__TIQUI_TEST_LIMITS = { image: 5, audio: 6, video: 7, total: 10 }; });
+  await page.reload();
+  await page.locator('#source').fill(mediaCourse);
+  let input = page.locator('[data-slot-id="intro-image"] input[type=file]');
+  await input.setInputFiles({ ...image, buffer: Buffer.alloc(5) });
+  await expect(page.locator('[data-slot-id="intro-image"]')).toContainText('intro-image.png');
+  await input.setInputFiles({ ...image, buffer: Buffer.alloc(6) });
+  await expect(page.locator('[data-slot-id="intro-image"] .media-error')).toContainText('5 байт');
+
+  await page.reload();
+  await page.locator('#source').fill(mediaCourse);
+  input = page.locator('[data-slot-id="question-audio"] input[type=file]');
+  await input.setInputFiles({ ...audio, buffer: Buffer.alloc(6) });
+  await expect(page.locator('[data-slot-id="question-audio"]')).toContainText('question-audio.mp3');
+  await input.setInputFiles({ ...audio, buffer: Buffer.alloc(7) });
+  await expect(page.locator('[data-slot-id="question-audio"] .media-error')).toContainText('6 байт');
+
+  await page.reload();
+  await page.locator('#source').fill(mediaCourse.replace('image:intro-image', 'video:intro-image'));
+  input = page.locator('[data-slot-id="intro-image"] input[type=file]');
+  await input.setInputFiles({ name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(7) });
+  await expect(page.locator('[data-slot-id="intro-image"]')).toContainText('intro-image.mp4');
+  await input.setInputFiles({ name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(8) });
+  await expect(page.locator('[data-slot-id="intro-image"] .media-error')).toContainText('7 байт');
+
+  await page.reload();
+  await page.locator('#source').fill(mediaCourse);
+  await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles({ ...image, buffer: Buffer.alloc(5) });
+  input = page.locator('[data-slot-id="question-audio"] input[type=file]');
+  await input.setInputFiles({ ...audio, buffer: Buffer.alloc(5) });
+  await expect(page.locator('#mediaTotal')).toHaveText('10 Б');
+  await input.setInputFiles({ ...audio, buffer: Buffer.alloc(6) });
+  await expect(page.locator('[data-slot-id="question-audio"] .media-error')).toContainText('10 байт');
+});
+
+test('asks before exporting a package above the confirmation threshold', async ({ page }) => {
+  await page.addInitScript(() => { window.__TIQUI_CONFIRM_THRESHOLD = 4; });
+  await page.reload();
+  await page.locator('#source').fill(mediaCourse);
+  await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles(image);
+  await page.locator('[data-slot-id="question-audio"] input[type=file]').setInputFiles(audio);
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: 'Скачать квиз для ученика' }).click();
+  await expect(page.locator('#operationProgress')).toBeHidden();
+  await expect(page.locator('#mediaTotal')).toHaveText('10 Б');
+});
+
+test('prunes orphan media when saving so the project reopens', async ({ page }) => {
+  await page.locator('#source').fill(mediaCourse);
+  await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles(image);
+  await page.locator('#source').fill(mediaCourse.replace(/Медиа: image:intro-image\nОписание медиа: Обложка темы\n/, ''));
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Сохранить проект' }).click();
+  const saved = await downloadPromise;
+  const path = test.info().outputPath('pruned.tiqui');
+  await saved.saveAs(path);
+  await page.locator('#projectInput').setInputFiles(path);
+  await expect(page.locator('#projectStatus')).not.toContainText('Не удалось открыть проект');
+  await expect(page.locator('#mediaTotal')).toHaveText('0 Б');
+});
