@@ -16,7 +16,14 @@ function sourceLines(source) {
 
 function validateAnchor(lines, anchor) {
   const expected = anchor?.scope === 'lesson' ? /^##\s+/ : anchor?.scope === 'question' ? /^###\s+/ : null;
-  if (!expected || !Number.isInteger(anchor.line) || !expected.test(lines[anchor.line]?.trim() ?? '')) {
+  const actualHeading = lines[anchor?.line]?.trim() ?? '';
+  if (
+    !expected
+    || !Number.isInteger(anchor.line)
+    || typeof anchor.heading !== 'string'
+    || !expected.test(anchor.heading)
+    || actualHeading !== anchor.heading
+  ) {
     throw new MediaTemplateError('Источник изменился: позиция темы или вопроса устарела', 'STALE_ANCHOR');
   }
 }
