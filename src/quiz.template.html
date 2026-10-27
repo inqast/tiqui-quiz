@@ -366,6 +366,23 @@
       margin: 12px 0 0
     }
 
+
+    .authoring-column { display: grid; gap: 16px; min-width: 0; }
+    .operation { margin-top: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 12px; }
+    .operation[hidden] { display: none; }
+    .operation progress { flex: 1; min-width: 120px; }
+    .media-panel { padding: 16px; }
+    .media-panel-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .media-panel-status { margin: 0 0 10px; color: var(--muted); }
+    .media-owner { border-top: 1px solid var(--line); padding: 12px 0; }
+    .media-owner:first-child { border-top: 0; }
+    .media-owner-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .media-slot { margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--soft); }
+    .media-slot-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .media-slot input[type=file] { max-width: 230px; }
+    .media-error { color: var(--danger); margin: 6px 0 0; }
+    .media-dialog select, .media-dialog input[type=text] { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 9px; padding: 8px; }
+
     @media(max-width:850px) {
       .shell {
         padding: 20px 14px 32px
@@ -534,19 +551,26 @@
     <header class="mast">
       <div>
         <div class="brand"><span>Tiqui</span> Quiz</div>
-        <div class="tag">Из Markdown — в самостоятельный учебный квиз</div>
+        <div class="tag">Из шаблона — в самостоятельный учебный квиз</div>
       </div>
       <div class="tag">Работает локально · без установки</div>
     </header>
     <section class="panel toolbar" id="dropZone">
-      <label class="file-label">Открыть шаблон квиза<input id="fileInput" type="file"
-          accept=".md,text/markdown,text/plain"></label>
-      <button class="btn secondary" id="saveMd">Скачать шаблон квиза</button>
+      <label class="file-label">Импортировать шаблон<input id="fileInput" type="file" accept=".md,text/markdown,text/plain"></label>
+      <button class="btn secondary" id="saveMd">Скачать шаблон</button>
+      <label class="file-label">Открыть проект<input id="projectInput" type="file" accept=".tiqui,application/zip"></label>
+      <button class="btn secondary" id="saveProject">Сохранить проект</button>
       <button class="btn secondary" id="openPromptBuilder">Создать с помощью ИИ</button>
-      <button class="btn" id="exportHtml">Скачать квиз</button>
+      <button class="btn" id="exportHtml">Скачать квиз для ученика</button>
       <span class="filename" id="filename">lesson-example.md</span>
     </section>
+    <section class="panel operation" id="operationProgress" hidden aria-live="polite">
+      <span id="operationLabel">Подготовка файлов…</span>
+      <progress id="operationBar"></progress>
+      <button class="btn secondary" id="cancelOperation" type="button">Отменить операцию</button>
+    </section>
     <div class="messages panel" id="messages" aria-live="polite"></div>
+    <div class="status" id="projectStatus" aria-live="polite"></div>
     <div class="mobile-tabs" role="tablist" aria-label="Рабочая область">
       <button class="mobile-tab" id="editorTab" type="button" role="tab" aria-selected="true"
         aria-controls="editorPanel">Редактор</button>
@@ -554,13 +578,19 @@
         aria-controls="previewPanel">Предпросмотр</button>
     </div>
     <section class="workspace" data-mobile-view="editor">
-      <div class="panel editor" id="editorPanel" role="tabpanel" aria-labelledby="editorTab">
-        <div class="editor-head">
-          <span class="editor-title">Документ курса <button class="clear-editor" id="clearEditor" type="button"
-              aria-label="Очистить редактор">Очистить</button></span>
-          <span class="status" id="editStatus">готов</span>
+      <div class="authoring-column">
+        <div class="panel editor" id="editorPanel" role="tabpanel" aria-labelledby="editorTab">
+          <div class="editor-head">
+            <span class="editor-title">Документ курса <button class="clear-editor" id="clearEditor" type="button" aria-label="Очистить редактор">Очистить</button></span>
+            <span class="status" id="editStatus">готов</span>
+          </div>
+          <textarea id="source" spellcheck="false" aria-label="Шаблон курса"></textarea>
         </div>
-        <textarea id="source" spellcheck="false" aria-label="Markdown курса"></textarea>
+        <section class="panel media-panel" id="mediaPanel" aria-labelledby="mediaPanelTitle">
+          <div class="media-panel-head"><strong id="mediaPanelTitle">Медиа курса</strong><span id="mediaTotal">0 Б</span></div>
+          <p class="media-panel-status" id="mediaPanelStatus"></p>
+          <div id="mediaOutline"></div>
+        </section>
       </div>
       <div class="panel preview" id="previewPanel" role="tabpanel" aria-labelledby="previewTab">
         <div class="preview-head"><span>Предпросмотр</span><span class="status">прогресс здесь тестовый</span></div>
@@ -574,13 +604,23 @@
     <section class="panel feedback" aria-labelledby="feedback-title">
       <div class="feedback-text">
         <strong id="feedback-title">Нашли ошибку или придумали улучшение?</strong>
-        <span>Сообщите нам, но не публикуйте персональные данные ребёнка. Для ошибки достаточно минимального примера Markdown.</span>
+        <span>Сообщите нам, но не публикуйте персональные данные ребёнка. Для ошибки достаточно минимального примера шаблона.</span>
       </div>
       <a class="btn" href="https://github.com/inqast/tiqui-quiz/issues/new/choose" target="_blank"
         rel="noopener noreferrer">Оставить отзыв на GitHub</a>
       <a class="btn secondary" href="mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь">Написать на почту</a>
     </section>
   </main>
+  <dialog id="mediaDialog" aria-labelledby="mediaDialogTitle">
+    <form class="prompt-modal media-dialog" method="dialog">
+      <div class="prompt-head"><h2 id="mediaDialogTitle">Добавить медиа</h2><button class="icon-btn" id="closeMediaDialog" value="cancel" aria-label="Закрыть">✕</button></div>
+      <label class="prompt-field">Тип медиа<select id="mediaKind"><option value="image">Фото</option><option value="video">Видео</option><option value="audio">Аудио</option></select></label>
+      <label class="prompt-field">Описание<input id="mediaDescription" type="text" maxlength="300" required></label>
+      <label class="file-label">Выбрать локальный файл<input id="mediaFile" type="file"></label>
+      <p class="error" id="mediaDialogError" aria-live="polite"></p>
+      <button class="btn" id="confirmMedia" type="button">Добавить файл</button>
+    </form>
+  </dialog>
   <dialog id="promptDialog" aria-labelledby="prompt-title">
     <div class="prompt-modal">
       <div class="prompt-head">
@@ -623,7 +663,7 @@
         <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT</a>
         <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude</a>
       </div>
-      <p class="prompt-note">Промпт не отправляется автоматически: вставьте его в открывшийся чат самостоятельно. Скачайте из ответа файл <code>lesson.md</code> и откройте его в Tiqui Quiz. Если чат вернул блок кода вместо файла, используйте кнопку копирования этого блока, чтобы не потерять символы Markdown. Доступность сервисов зависит от страны, в том числе не все провайдеры доступны в России.</p>
+      <p class="prompt-note">Промпт не отправляется автоматически: вставьте его в открывшийся чат самостоятельно. Скачайте из ответа файл <code>lesson.md</code> и откройте его в Tiqui Quiz. Если чат вернул блок кода вместо файла, используйте кнопку копирования этого блока, чтобы не потерять символы шаблона. Доступность сервисов зависит от страны, в том числе не все провайдеры доступны в России.</p>
     </div>
   </dialog>
   <script>

@@ -12,17 +12,19 @@ const paths = {
   player: resolve(root, 'src', 'player.js'),
   parser: resolve(root, 'src', 'parser.js'),
   mediaRegistry: resolve(root, 'src', 'media-registry.js'),
+  mediaTemplate: resolve(root, 'src', 'media-template.js'),
   coursePackage: resolve(root, 'src', 'course-package.js'),
   studentHtml: resolve(root, 'src', 'student-html.js'),
   app: resolve(root, 'src', 'app.js'),
   output: resolve(root, 'quiz.html'),
 };
 
-const [template, playerSource, parserSource, mediaRegistrySource, coursePackageSource, studentHtmlSource, appSource] = await Promise.all([
+const [template, playerSource, parserSource, mediaRegistrySource, mediaTemplateSource, coursePackageSource, studentHtmlSource, appSource] = await Promise.all([
   readFile(paths.template, 'utf8'),
   readFile(paths.player, 'utf8'),
   readFile(paths.parser, 'utf8'),
   readFile(paths.mediaRegistry, 'utf8'),
+  readFile(paths.mediaTemplate, 'utf8'),
   readFile(paths.coursePackage, 'utf8'),
   readFile(paths.studentHtml, 'utf8'),
   readFile(paths.app, 'utf8'),
@@ -40,7 +42,7 @@ function indent(source) {
 }
 
 const zipLicense = (await readFile(resolve(zipRoot, 'LICENSE'), 'utf8')).trim();
-const projectBundle = [playerSource, parserSource, mediaRegistrySource, coursePackageSource, studentHtmlSource, appSource]
+const projectBundle = [playerSource, parserSource, mediaRegistrySource, mediaTemplateSource, coursePackageSource, studentHtmlSource, appSource]
   .map(removeModuleSyntax)
   .join('\n\n');
 const bundle = `/* fflate (MIT)\n${zipLicense}\n*/\n${zipSource}\n\n${projectBundle}`;

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { unzipSync } from 'fflate';
 
 const payload = '</script><script>window.__tiquiXss=true</script><img src=x onerror="window.__tiquiXss=true">';
 
@@ -57,8 +59,11 @@ test('keeps hostile Markdown inert in an exported standalone quiz', async ({ pag
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#exportHtml').click();
   const download = await downloadPromise;
-  const filePath = testInfo.outputPath('security-regression.html');
-  await download.saveAs(filePath);
+  const zipPath = testInfo.outputPath('security-regression.zip');
+  await download.saveAs(zipPath);
+  const entries = unzipSync(new Uint8Array(await readFile(zipPath)));
+  const filePath = testInfo.outputPath('index.html');
+  await writeFile(filePath, entries['index.html']);
 
   await page.goto(pathToFileURL(filePath).href);
   await expect(page.locator('img')).toHaveCount(0);

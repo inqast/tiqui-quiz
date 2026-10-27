@@ -366,6 +366,23 @@
       margin: 12px 0 0
     }
 
+
+    .authoring-column { display: grid; gap: 16px; min-width: 0; }
+    .operation { margin-top: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 12px; }
+    .operation[hidden] { display: none; }
+    .operation progress { flex: 1; min-width: 120px; }
+    .media-panel { padding: 16px; }
+    .media-panel-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .media-panel-status { margin: 0 0 10px; color: var(--muted); }
+    .media-owner { border-top: 1px solid var(--line); padding: 12px 0; }
+    .media-owner:first-child { border-top: 0; }
+    .media-owner-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .media-slot { margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--soft); }
+    .media-slot-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .media-slot input[type=file] { max-width: 230px; }
+    .media-error { color: var(--danger); margin: 6px 0 0; }
+    .media-dialog select, .media-dialog input[type=text] { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 9px; padding: 8px; }
+
     @media(max-width:850px) {
       .shell {
         padding: 20px 14px 32px
@@ -534,19 +551,26 @@
     <header class="mast">
       <div>
         <div class="brand"><span>Tiqui</span> Quiz</div>
-        <div class="tag">Из Markdown — в самостоятельный учебный квиз</div>
+        <div class="tag">Из шаблона — в самостоятельный учебный квиз</div>
       </div>
       <div class="tag">Работает локально · без установки</div>
     </header>
     <section class="panel toolbar" id="dropZone">
-      <label class="file-label">Открыть шаблон квиза<input id="fileInput" type="file"
-          accept=".md,text/markdown,text/plain"></label>
-      <button class="btn secondary" id="saveMd">Скачать шаблон квиза</button>
+      <label class="file-label">Импортировать шаблон<input id="fileInput" type="file" accept=".md,text/markdown,text/plain"></label>
+      <button class="btn secondary" id="saveMd">Скачать шаблон</button>
+      <label class="file-label">Открыть проект<input id="projectInput" type="file" accept=".tiqui,application/zip"></label>
+      <button class="btn secondary" id="saveProject">Сохранить проект</button>
       <button class="btn secondary" id="openPromptBuilder">Создать с помощью ИИ</button>
-      <button class="btn" id="exportHtml">Скачать квиз</button>
+      <button class="btn" id="exportHtml">Скачать квиз для ученика</button>
       <span class="filename" id="filename">lesson-example.md</span>
     </section>
+    <section class="panel operation" id="operationProgress" hidden aria-live="polite">
+      <span id="operationLabel">Подготовка файлов…</span>
+      <progress id="operationBar"></progress>
+      <button class="btn secondary" id="cancelOperation" type="button">Отменить операцию</button>
+    </section>
     <div class="messages panel" id="messages" aria-live="polite"></div>
+    <div class="status" id="projectStatus" aria-live="polite"></div>
     <div class="mobile-tabs" role="tablist" aria-label="Рабочая область">
       <button class="mobile-tab" id="editorTab" type="button" role="tab" aria-selected="true"
         aria-controls="editorPanel">Редактор</button>
@@ -554,13 +578,19 @@
         aria-controls="previewPanel">Предпросмотр</button>
     </div>
     <section class="workspace" data-mobile-view="editor">
-      <div class="panel editor" id="editorPanel" role="tabpanel" aria-labelledby="editorTab">
-        <div class="editor-head">
-          <span class="editor-title">Документ курса <button class="clear-editor" id="clearEditor" type="button"
-              aria-label="Очистить редактор">Очистить</button></span>
-          <span class="status" id="editStatus">готов</span>
+      <div class="authoring-column">
+        <div class="panel editor" id="editorPanel" role="tabpanel" aria-labelledby="editorTab">
+          <div class="editor-head">
+            <span class="editor-title">Документ курса <button class="clear-editor" id="clearEditor" type="button" aria-label="Очистить редактор">Очистить</button></span>
+            <span class="status" id="editStatus">готов</span>
+          </div>
+          <textarea id="source" spellcheck="false" aria-label="Шаблон курса"></textarea>
         </div>
-        <textarea id="source" spellcheck="false" aria-label="Markdown курса"></textarea>
+        <section class="panel media-panel" id="mediaPanel" aria-labelledby="mediaPanelTitle">
+          <div class="media-panel-head"><strong id="mediaPanelTitle">Медиа курса</strong><span id="mediaTotal">0 Б</span></div>
+          <p class="media-panel-status" id="mediaPanelStatus"></p>
+          <div id="mediaOutline"></div>
+        </section>
       </div>
       <div class="panel preview" id="previewPanel" role="tabpanel" aria-labelledby="previewTab">
         <div class="preview-head"><span>Предпросмотр</span><span class="status">прогресс здесь тестовый</span></div>
@@ -574,13 +604,23 @@
     <section class="panel feedback" aria-labelledby="feedback-title">
       <div class="feedback-text">
         <strong id="feedback-title">Нашли ошибку или придумали улучшение?</strong>
-        <span>Сообщите нам, но не публикуйте персональные данные ребёнка. Для ошибки достаточно минимального примера Markdown.</span>
+        <span>Сообщите нам, но не публикуйте персональные данные ребёнка. Для ошибки достаточно минимального примера шаблона.</span>
       </div>
       <a class="btn" href="https://github.com/inqast/tiqui-quiz/issues/new/choose" target="_blank"
         rel="noopener noreferrer">Оставить отзыв на GitHub</a>
       <a class="btn secondary" href="mailto:inqast@gmail.com?subject=Tiqui%20Quiz%3A%20обратная%20связь">Написать на почту</a>
     </section>
   </main>
+  <dialog id="mediaDialog" aria-labelledby="mediaDialogTitle">
+    <form class="prompt-modal media-dialog" method="dialog">
+      <div class="prompt-head"><h2 id="mediaDialogTitle">Добавить медиа</h2><button class="icon-btn" id="closeMediaDialog" value="cancel" aria-label="Закрыть">✕</button></div>
+      <label class="prompt-field">Тип медиа<select id="mediaKind"><option value="image">Фото</option><option value="video">Видео</option><option value="audio">Аудио</option></select></label>
+      <label class="prompt-field">Описание<input id="mediaDescription" type="text" maxlength="300" required></label>
+      <label class="file-label">Выбрать локальный файл<input id="mediaFile" type="file"></label>
+      <p class="error" id="mediaDialogError" aria-live="polite"></p>
+      <button class="btn" id="confirmMedia" type="button">Добавить файл</button>
+    </form>
+  </dialog>
   <dialog id="promptDialog" aria-labelledby="prompt-title">
     <div class="prompt-modal">
       <div class="prompt-head">
@@ -623,7 +663,7 @@
         <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT</a>
         <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude</a>
       </div>
-      <p class="prompt-note">Промпт не отправляется автоматически: вставьте его в открывшийся чат самостоятельно. Скачайте из ответа файл <code>lesson.md</code> и откройте его в Tiqui Quiz. Если чат вернул блок кода вместо файла, используйте кнопку копирования этого блока, чтобы не потерять символы Markdown. Доступность сервисов зависит от страны, в том числе не все провайдеры доступны в России.</p>
+      <p class="prompt-note">Промпт не отправляется автоматически: вставьте его в открывшийся чат самостоятельно. Скачайте из ответа файл <code>lesson.md</code> и откройте его в Tiqui Quiz. Если чат вернул блок кода вместо файла, используйте кнопку копирования этого блока, чтобы не потерять символы шаблона. Доступность сервисов зависит от страны, в том числе не все провайдеры доступны в России.</p>
     </div>
   </dialog>
   <script>
@@ -1141,6 +1181,70 @@
       });
     }
 
+    class MediaTemplateError extends Error {
+      code = 'MEDIA_TEMPLATE_ERROR';
+      constructor(message, code = 'MEDIA_TEMPLATE_ERROR') {
+        super(message);
+        this.name = 'MediaTemplateError';
+        this.code = code;
+      }
+    }
+
+    const MEDIA_FIELD = /^\s*(Медиа|Описание медиа):/i;
+    const LESSON_METADATA = /^\s*(Иконка|Описание|ID):/i;
+
+    function sourceLines(source) {
+      return String(source).replace(/\r\n?/g, '\n').split('\n');
+    }
+
+    function validateAnchor(lines, anchor) {
+      const expected = anchor?.scope === 'lesson' ? /^##\s+/ : anchor?.scope === 'question' ? /^###\s+/ : null;
+      const actualHeading = lines[anchor?.line]?.trim() ?? '';
+      if (
+        !expected
+        || !Number.isInteger(anchor.line)
+        || typeof anchor.heading !== 'string'
+        || !expected.test(anchor.heading)
+        || actualHeading !== anchor.heading
+      ) {
+        throw new MediaTemplateError('Источник изменился: позиция темы или вопроса устарела', 'STALE_ANCHOR');
+      }
+    }
+
+    function ownerEnd(lines, anchor) {
+      const nextHeading = /^#{1,3}\s+/;
+      for (let index = anchor.line + 1; index < lines.length; index++) {
+        if (nextHeading.test(lines[index].trim())) return index;
+      }
+      return lines.length;
+    }
+
+    function withoutMediaFields(lines, anchor) {
+      const end = ownerEnd(lines, anchor);
+      return lines.filter((line, index) => index <= anchor.line || index >= end || !MEDIA_FIELD.test(line));
+    }
+
+    function upsertMediaBlock(source, anchor, media) {
+      const lines = sourceLines(source);
+      validateAnchor(lines, anchor);
+      const updated = withoutMediaFields(lines, anchor);
+      let insertAt = anchor.line + 1;
+      if (anchor.scope === 'lesson') {
+        const end = ownerEnd(updated, anchor);
+        for (let index = anchor.line + 1; index < end; index++) {
+          if (LESSON_METADATA.test(updated[index])) insertAt = index + 1;
+        }
+      }
+      updated.splice(insertAt, 0, `Медиа: ${media.kind}:${media.id}`, `Описание медиа: ${media.description}`);
+      return updated.join('\n');
+    }
+
+    function removeMediaBlock(source, anchor) {
+      const lines = sourceLines(source);
+      validateAnchor(lines, anchor);
+      return withoutMediaFields(lines, anchor).join('\n');
+    }
+
     const PACKAGE_MIB = 1024 * 1024;
 
     const PACKAGE_DEFAULT_LIMITS = Object.freeze({
@@ -1641,6 +1745,10 @@
 
     const source = document.querySelector('#source'), preview = document.querySelector('#preview'), messages = document.querySelector('#messages'), filename = document.querySelector('#filename'), status = document.querySelector('#editStatus');
     const workspace = document.querySelector('.workspace'), editorTab = document.querySelector('#editorTab'), previewTab = document.querySelector('#previewTab');
+    const exportButton = document.querySelector('#exportHtml'), mediaOutline = document.querySelector('#mediaOutline'), mediaPanelStatus = document.querySelector('#mediaPanelStatus'), mediaTotal = document.querySelector('#mediaTotal');
+    const operationProgress = document.querySelector('#operationProgress'), operationLabel = document.querySelector('#operationLabel'), operationBar = document.querySelector('#operationBar');
+    const mediaDialog = document.querySelector('#mediaDialog'), mediaKind = document.querySelector('#mediaKind'), mediaDescription = document.querySelector('#mediaDescription'), mediaFile = document.querySelector('#mediaFile'), mediaDialogError = document.querySelector('#mediaDialogError');
+    const projectPackage = createCoursePackage(fflate, { digest: (algorithm, bytes) => crypto.subtle.digest(algorithm, bytes) });
     function setMobileView(view) {
       workspace.dataset.mobileView = view;
       editorTab.setAttribute('aria-selected', String(view === 'editor'));
@@ -1713,28 +1821,135 @@
 
     Объяснение: Левая и правая части пары разделяются символами =>.
     `;
-    let currentName = 'lesson-example.md', timer = null, lastCourse = null; source.value = starter;
-    function update() { const parsed = parseDocument(source.value); lastCourse = parsed.errors.length ? null : parsed.course; messages.innerHTML = parsed.errors.length ? `<ul class="error">${parsed.errors.map(error => `<li>${escapeHtml(error)}</li>`).join('')}</ul>` : `<p class="ok">Документ корректен: ${parsed.course.lessons.length} тем, ${parsed.course.lessons.reduce((sum, item) => sum + item.questions.length, 0)} вопросов.</p>`; document.querySelector('#exportHtml').disabled = !lastCourse; preview.innerHTML = ''; if (lastCourse) createPlayer(preview, lastCourse, { preview: true }); status.textContent = parsed.errors.length ? `${parsed.errors.length} ошибок` : 'сохранено локально' }
+    let currentName = 'lesson-example.md', timer = null, lastCourse = null, lastOutline = [], registry = createMediaRegistry(), activeOperation = null, pendingOwner = null;
+    source.value = starter;
     function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])) }
-    function download(content, name, type) { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type })); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000) }
-    function standalone(course) {
-      const json = JSON.stringify(course).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
-      const scriptOpen = '<scr' + 'ipt>';
-      const scriptClose = '</scr' + 'ipt>';
-      return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(course.title)}</title><style>html,body{margin:0;min-height:100%;background:#f7f7f2}${PLAYER_CSS}</style></head><body><main id="quiz"></main>${scriptOpen}const COURSE=${json};(${createPlayer.toString()})(document.querySelector('#quiz'),COURSE);${scriptClose}</body></html>`;
+    function humanBytes(bytes) { if (bytes < 1024) return `${bytes} Б`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} КБ`; return `${(bytes / 1024 ** 2).toFixed(1)} МБ` }
+    function downloadBlob(blob, name) { const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000) }
+    function downloadText(content, name, type) { downloadBlob(new Blob([content], { type }), name) }
+    function owners(course) {
+      return course.lessons.flatMap((lesson, lessonIndex) => [
+        { key: `lesson:${lessonIndex}`, title: `Тема: ${lesson.title}`, anchor: lesson.anchor, media: lesson.media },
+        ...lesson.questions.map((question, questionIndex) => ({ key: `question:${lessonIndex}:${questionIndex}`, title: `Вопрос ${questionIndex + 1}: ${question.text || question.type}`, anchor: question.anchor, media: question.media }))
+      ]);
     }
-    source.addEventListener('input', () => { status.textContent = 'проверка…'; lastCourse = null; document.querySelector('#exportHtml').disabled = true; clearTimeout(timer); timer = setTimeout(update, 250) });
-    document.querySelector('#fileInput').addEventListener('change', event => loadFile(event.target.files[0]));
-    function loadFile(file) { if (!file) return; const reader = new FileReader(); reader.onload = () => { source.value = String(reader.result); currentName = file.name.replace(/\.md$/i, '') + '.md'; filename.textContent = currentName; update() }; reader.onerror = () => { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }; reader.readAsText(file) }
-    const dropZone = document.querySelector('#dropZone');['dragenter', 'dragover'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.add('drop') }));['dragleave', 'drop'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.remove('drop') })); dropZone.addEventListener('drop', event => loadFile(event.dataTransfer.files[0]));
-    document.querySelector('#saveMd').onclick = () => download(source.value, currentName, 'text/markdown;charset=utf-8');
+    const assets = () => registry.exportManifest().value || [];
+    const readiness = () => lastCourse ? registry.validate(lastCourse) : { ok: false, errors: [] };
+    function destroyPreview() { preview.__tiquiPlayer?.destroy?.(); preview.innerHTML = '' }
+    function replaceRegistry(next) { destroyPreview(); registry.dispose(); registry = next }
+    function renderPreview() {
+      destroyPreview();
+      if (lastCourse) createPlayer(preview, lastCourse, { preview: true, resolveMedia: slot => registry.createPreviewUrl(slot.id).value || null });
+    }
+    function renderOutline(valid) {
+      mediaTotal.textContent = humanBytes(assets().reduce((sum, asset) => sum + asset.size, 0));
+      mediaPanelStatus.textContent = valid ? '' : 'Исправьте шаблон: медиаслоты временно доступны только для просмотра.';
+      mediaOutline.replaceChildren();
+      lastOutline.forEach(owner => {
+        const box = document.createElement('section'); box.className = 'media-owner'; box.dataset.ownerKey = owner.key;
+        const head = document.createElement('div'); head.className = 'media-owner-head';
+        const title = document.createElement('strong'); title.textContent = owner.title;
+        const add = document.createElement('button'); add.className = 'btn secondary'; add.type = 'button'; add.textContent = owner.media ? 'Изменить медиа' : 'Добавить медиа'; add.disabled = !valid; add.onclick = () => openMediaDialog(owner);
+        head.append(title, add); box.append(head);
+        if (owner.media) {
+          const asset = registry.get(owner.media.id).value;
+          const slot = document.createElement('div'); slot.className = 'media-slot'; slot.dataset.slotId = owner.media.id;
+          const description = document.createElement('div'); description.textContent = owner.media.description;
+          const row = document.createElement('div'); row.className = 'media-slot-row';
+          const state = document.createElement('span'); state.textContent = asset ? `${asset.filename} · ${humanBytes(asset.size)}` : 'Файл не выбран';
+          const input = document.createElement('input'); input.type = 'file'; input.disabled = !valid; input.accept = acceptFor(owner.media.kind);
+          const error = document.createElement('p'); error.className = 'media-error';
+          input.onchange = () => { const result = registry.attach(owner.media, input.files[0]); error.textContent = result.ok ? '' : result.errors.map(item => item.message).join(' '); if (result.ok) update() };
+          const remove = document.createElement('button'); remove.className = 'btn secondary'; remove.type = 'button'; remove.textContent = 'Удалить'; remove.disabled = !valid;
+          remove.onclick = () => { destroyPreview(); registry.remove(owner.media.id); source.value = removeMediaBlock(source.value, owner.anchor); update() };
+          row.append(state, input, remove); slot.append(description, row, error); box.append(slot);
+        }
+        mediaOutline.append(box);
+      });
+    }
+    function update() {
+      const parsed = parseDocument(source.value), valid = parsed.errors.length === 0;
+      lastCourse = valid ? parsed.course : null;
+      if (valid) lastOutline = owners(parsed.course);
+      messages.innerHTML = valid ? `<p class="ok">Документ корректен: ${parsed.course.lessons.length} тем, ${parsed.course.lessons.reduce((sum, item) => sum + item.questions.length, 0)} вопросов.</p>` : `<ul class="error">${parsed.errors.map(error => `<li>${escapeHtml(error)}</li>`).join('')}</ul>`;
+      exportButton.disabled = !valid || !readiness().ok || Boolean(activeOperation);
+      renderOutline(valid); renderPreview();
+      status.textContent = valid ? 'сохранено локально' : `${parsed.errors.length} ошибок`;
+    }
+    function acceptFor(kind) { return kind === 'image' ? '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp' : kind === 'audio' ? '.mp3,.m4a,audio/mpeg,audio/mp4' : '.mp4,video/mp4' }
+    function openMediaDialog(owner) {
+      if (!lastCourse) return;
+      pendingOwner = owner; mediaKind.value = owner.media?.kind || 'image'; mediaDescription.value = owner.media?.description || ''; mediaFile.value = ''; mediaDialogError.textContent = ''; mediaFile.accept = acceptFor(mediaKind.value); mediaDialog.showModal();
+    }
+    mediaKind.onchange = () => { mediaFile.accept = acceptFor(mediaKind.value) };
+    document.querySelector('#confirmMedia').onclick = () => {
+      if (!pendingOwner || !lastCourse) return;
+      const description = mediaDescription.value.trim(), file = mediaFile.files[0];
+      if (!description) { mediaDialogError.textContent = 'Добавьте описание медиа.'; return }
+      if (!file) { mediaDialogError.textContent = 'Выберите локальный файл.'; return }
+      const base = slug(pendingOwner.title.replace(/^(Тема|Вопрос \d+):\s*/, '')) || 'media';
+      const slot = { id: pendingOwner.media?.id || `${base}-media`, kind: mediaKind.value, description };
+      const result = registry.attach(slot, file);
+      if (!result.ok) { mediaDialogError.textContent = result.errors.map(item => item.message).join(' '); return }
+      source.value = upsertMediaBlock(source.value, pendingOwner.anchor, slot); pendingOwner = null; mediaDialog.close(); update();
+    };
+    source.addEventListener('input', () => { status.textContent = 'проверка…'; lastCourse = null; exportButton.disabled = true; clearTimeout(timer); timer = setTimeout(update, 250) });
+    async function importTemplate(file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        replaceRegistry(createMediaRegistry()); source.value = text; currentName = file.name.replace(/\\.md$/i, '') + '.md'; filename.textContent = currentName; update();
+      } catch { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }
+    }
+    document.querySelector('#fileInput').addEventListener('change', event => importTemplate(event.target.files[0]));
+    const dropZone = document.querySelector('#dropZone');
+    ['dragenter', 'dragover'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.add('drop') }));
+    ['dragleave', 'drop'].forEach(name => dropZone.addEventListener(name, event => { event.preventDefault(); dropZone.classList.remove('drop') }));
+    dropZone.addEventListener('drop', event => importTemplate(event.dataTransfer.files[0]));
+    document.querySelector('#saveMd').onclick = () => downloadText(source.value, currentName, 'text/markdown;charset=utf-8');
     document.querySelector('#clearEditor').onclick = () => {
       if (!source.value || !window.confirm('Удалить весь текст из редактора? Это действие нельзя отменить.')) return;
-      source.value = '';
-      update();
-      source.focus();
+      replaceRegistry(createMediaRegistry()); source.value = ''; currentName = 'lesson.md'; filename.textContent = currentName; update(); source.focus();
     };
-    document.querySelector('#exportHtml').onclick = () => { if (!lastCourse) return; download(standalone(lastCourse), `${slug(lastCourse.title)}.html`, 'text/html;charset=utf-8') };
+    function startOperation(label) {
+      if (activeOperation) return null;
+      const controller = new AbortController(); activeOperation = controller; operationLabel.textContent = label; operationBar.removeAttribute('value'); operationProgress.hidden = false;
+      document.querySelectorAll('#dropZone button, #dropZone input').forEach(control => { control.disabled = true }); return controller;
+    }
+    function finishOperation(controller) {
+      if (activeOperation !== controller) return;
+      activeOperation = null; operationProgress.hidden = true; document.querySelectorAll('#dropZone button, #dropZone input').forEach(control => { control.disabled = false }); update();
+    }
+    document.querySelector('#cancelOperation').onclick = () => { const controller = activeOperation; controller?.abort(); if (controller) finishOperation(controller) };
+    async function runOperation(label, task, success) {
+      const controller = startOperation(label); if (!controller) return;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const result = await task(controller.signal, progress => { if (progress.total) { operationBar.max = progress.total; operationBar.value = progress.completed } });
+      if (result.ok && !controller.signal.aborted) success(result.value);
+      else if (!controller.signal.aborted) document.querySelector('#projectStatus').textContent = `${label.startsWith('Откры') ? 'Не удалось открыть проект' : 'Операция не выполнена'}: ${result.errors?.[0]?.message || 'неизвестная ошибка'}`;
+      finishOperation(controller);
+    }
+    document.querySelector('#saveProject').onclick = () => runOperation('Сохранение проекта…', (signal, onProgress) => projectPackage.saveProject({ source: source.value, course: lastCourse, registry }, { signal, onProgress }), blob => downloadBlob(blob, `${lastCourse?.id || slug(currentName.replace(/\\.md$/i, '')) || 'course'}.tiqui`));
+    document.querySelector('#projectInput').addEventListener('change', event => {
+      const file = event.target.files[0]; event.target.value = ''; if (!file) return;
+      runOperation('Открытие проекта…', (signal, onProgress) => projectPackage.openProject(file, { signal, onProgress }), candidate => {
+        const parsed = parseDocument(candidate.source);
+        if (parsed.errors.length) { document.querySelector('#projectStatus').textContent = 'Не удалось открыть проект: шаблон повреждён.'; return }
+        const next = createMediaRegistry(), candidateOwners = owners(parsed.course);
+        for (const asset of candidate.assets) {
+          const slot = candidateOwners.find(owner => owner.media?.id === asset.slotId)?.media;
+          if (!slot || !next.attach(slot, new File([asset.blob], asset.filename, { type: asset.mimeType })).ok) { next.dispose(); document.querySelector('#projectStatus').textContent = 'Не удалось открыть проект: медиа повреждено.'; return }
+        }
+        replaceRegistry(next); source.value = candidate.source; currentName = `${slug(parsed.course.title) || 'course'}.md`; filename.textContent = currentName; update();
+      });
+    });
+    exportButton.onclick = () => {
+      if (!lastCourse || !readiness().ok) return;
+      runOperation('Подготовка квиза…', (signal, onProgress) => {
+        const paths = Object.fromEntries(assets().map(asset => [asset.slotId, `media/${asset.filename}`]));
+        return projectPackage.exportStudentCourse({ course: lastCourse, registry, indexHtml: createStudentHtml(lastCourse, paths) }, { signal, onProgress });
+      }, blob => downloadBlob(blob, `${slug(lastCourse.title) || 'quiz'}.zip`));
+    };
 
     const promptDialog = document.querySelector('#promptDialog');
     const promptFields = ['#promptTopic', '#promptAudience', '#promptLessons', '#promptQuestions', '#promptDifficulty'].map(selector => document.querySelector(selector));

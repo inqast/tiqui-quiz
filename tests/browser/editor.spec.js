@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { unzipSync } from 'fflate';
 
 const fixture = new URL('../fixtures/all-question-types.md', import.meta.url).pathname;
 
@@ -173,9 +175,12 @@ test('exports a self-contained quiz that opens independently', async ({ page }, 
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#exportHtml').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('демонстрационный-тест.html');
-  const filePath = testInfo.outputPath(download.suggestedFilename());
-  await download.saveAs(filePath);
+  expect(download.suggestedFilename()).toBe('демонстрационный-тест.zip');
+  const zipPath = testInfo.outputPath(download.suggestedFilename());
+  await download.saveAs(zipPath);
+  const entries = unzipSync(new Uint8Array(await (await import('node:fs/promises')).readFile(zipPath)));
+  const filePath = testInfo.outputPath('index.html');
+  await writeFile(filePath, entries['index.html']);
   await page.goto(pathToFileURL(filePath).href);
   await expect(page.getByRole('heading', { name: /Демонстрационный тест/ })).toBeVisible();
   await expect(page.locator('.lesson-btn')).toHaveCount(1);
