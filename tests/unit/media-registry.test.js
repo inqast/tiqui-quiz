@@ -42,6 +42,19 @@ test('accepts only allowlisted MIME and extension pairs and normalizes archive n
   assert.equal(registry.attach(slot('чужой-тип', 'image'), file('clip.mp4', 'video/mp4')).ok, false);
 });
 
+test('accepts exact canonical slot IDs and rejects uppercase or non-NFKC variants', () => {
+  const accepted = createMediaRegistry();
+  assert.equal(accepted.attach(slot('abc-123', 'image'), file('latin.png', 'image/png')).ok, true);
+  assert.equal(accepted.attach(slot('фото-ёж-2', 'image'), file('cyrillic.png', 'image/png')).ok, true);
+
+  const rejected = ['ABC', 'Фото', 'и\u0306'];
+  for (const id of rejected) {
+    const result = createMediaRegistry().attach(slot(id, 'image'), file('photo.png', 'image/png'));
+    assert.equal(result.ok, false, `expected ${JSON.stringify(id)} to be rejected`);
+    assert.equal(result.errors[0].code, 'invalid-slot');
+  }
+});
+
 test('enforces 15/50/250 MiB per-kind limits and the 500 MiB project total', () => {
   const registry = createMediaRegistry();
 

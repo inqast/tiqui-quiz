@@ -50,6 +50,15 @@ function snapshot(asset) {
   });
 }
 
+/** @param {unknown} value */
+function isCanonicalSlotId(value) {
+  return typeof value === 'string'
+    && value === value.normalize('NFKC')
+    && value === value.toLocaleLowerCase('ru')
+    && /^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/.test(value)
+    && value.length <= 60;
+}
+
 /** @param {{ lessons?: Array<{ media?: MediaSlot, questions?: Array<{ media?: MediaSlot }> }> } | undefined} course */
 function collectSlots(course) {
   const slots = new Array();
@@ -91,7 +100,7 @@ export function createMediaRegistry(options) {
   /** @param {MediaSlot} slot @param {Blob} file */
   const attach = (slot, file) => {
     const slotId = slot?.id;
-    if (typeof slotId !== 'string' || !/^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/i.test(slotId) || slotId.length > 60) {
+    if (!isCanonicalSlotId(slotId)) {
       return failure([error('invalid-slot', 'Некорректный идентификатор медиаслота.', undefined)]);
     }
     if (!Object.prototype.hasOwnProperty.call(FILE_POLICIES, slot?.kind)) {
