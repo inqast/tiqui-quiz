@@ -73,7 +73,8 @@ test('builds a local prompt and offers AI provider links', async ({ page, contex
   expect(prompt).toContain('2 темы, примерно по 4 вопросов');
   expect(prompt).toContain('### Пары');
   expect(prompt).toContain('готовый файл lesson.md');
-  expect(prompt).toContain('в одном блоке кода с языком markdown');
+  expect(prompt).toContain('в одном блоке кода с шаблоном');
+  expect(prompt.toLowerCase()).not.toContain('markdown');
   await expect(dialog).toContainText('не все провайдеры доступны в России');
   await expect(dialog).toContainText('Скачайте из ответа файл lesson.md');
 
@@ -93,6 +94,67 @@ test('builds a local prompt and offers AI provider links', async ({ page, contex
 
   await page.getByRole('button', { name: 'Закрыть' }).click();
   await expect(dialog).not.toBeVisible();
+});
+
+test('prompt generates optional media slots with placement frequency kinds and local import guidance', async ({ page }) => {
+  await page.getByRole('button', { name: 'Создать с помощью ИИ' }).click();
+
+  const mediaOptions = page.locator('#promptMediaOptions');
+  await expect(mediaOptions).toBeHidden();
+  const defaultPrompt = await page.locator('#generatedPrompt').inputValue();
+  expect(defaultPrompt).not.toContain('Медиа:');
+  expect(defaultPrompt).not.toContain('Описание медиа:');
+  expect(defaultPrompt).toContain('3 темы, примерно по 5 вопросов');
+  expect(defaultPrompt.toLowerCase()).not.toContain('markdown');
+
+  await page.locator('#promptIncludeMedia').check();
+  await expect(mediaOptions).toBeVisible();
+  await page.locator('#promptLessonMedia').selectOption('every');
+  await page.locator('#promptQuestionMedia').selectOption('several');
+  await page.locator('#promptMediaImage').uncheck();
+  await page.locator('#promptMediaAudio').check();
+  await page.locator('#promptMediaVideo').check();
+
+  const prompt = await page.locator('#generatedPrompt').inputValue();
+  expect(prompt).toContain('в каждой теме');
+  expect(prompt).toContain('нескольких вопросах');
+  expect(prompt).toContain('audio или video');
+  expect(prompt).toContain('Медиа: audio:lesson-1-media');
+  expect(prompt).toContain('Медиа: video:question-1-media');
+  expect(prompt).toContain('сразу после заголовка вопроса, перед его текстом');
+  expect(prompt).toContain('Описание медиа: [обязательное содержательное описание]');
+  expect(prompt).toContain('уникальный ID');
+  expect(prompt).toContain('не создавай URL, пути к файлам или бинарные данные');
+  expect(prompt).toContain('локальные файлы');
+  expect(prompt).toContain('импортирует шаблон');
+});
+
+test('prompt validates media kinds and describes each placement permutation', async ({ page }) => {
+  await page.getByRole('button', { name: 'Создать с помощью ИИ' }).click();
+  await page.locator('#promptIncludeMedia').check();
+
+  for (const id of ['#promptMediaImage', '#promptMediaAudio', '#promptMediaVideo']) {
+    await page.locator(id).uncheck();
+  }
+  await expect(page.locator('#promptMediaError')).toContainText('Выберите хотя бы один тип');
+  await expect(page.locator('#copyPrompt')).toBeDisabled();
+
+  await page.locator('#promptMediaImage').check();
+  const cases = [
+    ['some', 'none', 'в некоторых темах', 'не добавляй медиа к вопросам'],
+    ['none', 'about-one', 'не добавляй вводное медиа к темам', 'примерно в одном вопросе на тему'],
+    ['every', 'several', 'в каждой теме', 'нескольких вопросах'],
+  ];
+  for (const [lesson, question, lessonText, questionText] of cases) {
+    await page.locator('#promptLessonMedia').selectOption(lesson);
+    await page.locator('#promptQuestionMedia').selectOption(question);
+    const prompt = await page.locator('#generatedPrompt').inputValue();
+    expect(prompt).toContain(lessonText);
+    expect(prompt).toContain(questionText);
+    expect(prompt).toContain('Медиа: image:');
+  }
+  await expect(page.locator('#promptMediaError')).toBeEmpty();
+  await expect(page.locator('#copyPrompt')).toBeEnabled();
 });
 
 test('updates validation and preview when course metadata is removed', async ({ page }) => {

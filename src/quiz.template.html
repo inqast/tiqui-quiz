@@ -339,6 +339,43 @@
       color: var(--ink)
     }
 
+    .prompt-media-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      font-weight: 700
+    }
+
+    .prompt-media-options {
+      margin: 0 0 18px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px
+    }
+
+    .prompt-media-options .prompt-fields {
+      margin: 10px 0
+    }
+
+    .prompt-media-kinds {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px 16px
+    }
+
+    .prompt-media-kinds label {
+      display: flex;
+      align-items: center;
+      gap: 5px
+    }
+
+    #promptMediaError {
+      min-height: 1.25em;
+      margin: 8px 0 0
+    }
+
     #generatedPrompt {
       height: 230px;
       min-height: 160px;
@@ -651,6 +688,33 @@
           </select>
         </label>
       </div>
+      <label class="prompt-media-toggle"><input id="promptIncludeMedia" type="checkbox"> Добавить медиа-слоты в шаблон</label>
+      <fieldset id="promptMediaOptions" class="prompt-media-options" hidden>
+        <legend>Медиа в шаблоне</legend>
+        <div class="prompt-fields">
+          <label>Вводное медиа темы
+            <select id="promptLessonMedia">
+              <option value="none">Не добавлять</option>
+              <option value="some">В некоторых темах</option>
+              <option value="every">В каждой теме</option>
+            </select>
+          </label>
+          <label>Медиа вопросов
+            <select id="promptQuestionMedia">
+              <option value="none">Не добавлять</option>
+              <option value="about-one">Примерно один на тему</option>
+              <option value="several">Несколько на тему</option>
+            </select>
+          </label>
+        </div>
+        <div class="prompt-media-kinds" aria-describedby="promptMediaError">
+          <span>Допустимые типы:</span>
+          <label><input id="promptMediaImage" type="checkbox" value="image" checked> Фото</label>
+          <label><input id="promptMediaAudio" type="checkbox" value="audio"> Аудио</label>
+          <label><input id="promptMediaVideo" type="checkbox" value="video"> Видео</label>
+        </div>
+        <p class="error" id="promptMediaError" role="status" aria-live="polite"></p>
+      </fieldset>
       <label for="generatedPrompt"><strong>Готовый промпт</strong></label>
       <textarea id="generatedPrompt" readonly></textarea>
       <div class="prompt-actions">

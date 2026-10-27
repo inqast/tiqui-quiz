@@ -273,15 +273,72 @@ const promptDialog = document.querySelector('#promptDialog');
 const promptFields = ['#promptTopic', '#promptAudience', '#promptLessons', '#promptQuestions', '#promptDifficulty'].map(selector => document.querySelector(selector));
 const generatedPrompt = document.querySelector('#generatedPrompt');
 const copyPromptStatus = document.querySelector('#copyPromptStatus');
+const promptMediaEnabled = document.querySelector('#promptIncludeMedia');
+const promptMediaOptions = document.querySelector('#promptMediaOptions');
+const promptLessonMedia = document.querySelector('#promptLessonMedia');
+const promptQuestionMedia = document.querySelector('#promptQuestionMedia');
+const promptMediaKinds = [
+  ['image', document.querySelector('#promptMediaImage')],
+  ['audio', document.querySelector('#promptMediaAudio')],
+  ['video', document.querySelector('#promptMediaVideo')],
+];
+const promptMediaError = document.querySelector('#promptMediaError');
+const copyPrompt = document.querySelector('#copyPrompt');
 const boundedNumber = (value, fallback) => Math.min(10, Math.max(1, Number.parseInt(value, 10) || fallback));
 function updateGeneratedPrompt() {
   const [topic, audience, lessons, questions, difficulty] = promptFields;
   const courseTopic = topic.value.trim() || '[укажите тему курса]';
+  const mediaEnabled = promptMediaEnabled.checked;
+  const selectedKinds = promptMediaKinds.filter(([, input]) => input.checked).map(([kind]) => kind);
+  const mediaValid = !mediaEnabled || selectedKinds.length > 0;
+  promptMediaOptions.hidden = !mediaEnabled;
+  promptMediaKinds.forEach(([, input]) => { input.disabled = !mediaEnabled });
+  promptLessonMedia.disabled = !mediaEnabled;
+  promptQuestionMedia.disabled = !mediaEnabled;
+  promptMediaError.textContent = mediaValid ? '' : 'Выберите хотя бы один тип медиа.';
+  copyPrompt.disabled = !mediaValid;
+
+  const lessonFrequency = {
+    none: 'не добавляй вводное медиа к темам',
+    some: 'добавь вводное медиа в некоторых темах',
+    every: 'добавь вводное медиа в каждой теме',
+  }[promptLessonMedia.value];
+  const questionFrequency = {
+    none: 'не добавляй медиа к вопросам',
+    'about-one': 'добавь медиа примерно в одном вопросе на тему',
+    several: 'добавь медиа в нескольких вопросах каждой темы',
+  }[promptQuestionMedia.value];
+  const lessonKind = selectedKinds[0] || 'image';
+  const questionKind = selectedKinds[1] || selectedKinds[0] || 'image';
+  const mediaExamples = [];
+  if (promptLessonMedia.value !== 'none') {
+    mediaExamples.push(`Пример для темы (после её Иконки):
+Медиа: ${lessonKind}:lesson-1-media
+Описание медиа: [обязательное содержательное описание]`);
+  }
+  if (promptQuestionMedia.value !== 'none') {
+    mediaExamples.push(`Пример для вопроса (сразу после заголовка вопроса, перед его текстом):
+Медиа: ${questionKind}:question-1-media
+Описание медиа: [обязательное содержательное описание]`);
+  }
+  const mediaInstructions = mediaEnabled && mediaValid ? `
+
+Медиа-слоты:
+- ${lessonFrequency};
+- ${questionFrequency};
+- используй только типы ${selectedKinds.join(' или ')};
+- для каждого слота используй ровно две строки «Медиа: тип:уникальный-id» и «Описание медиа: ...»;
+- дай каждому слоту уникальный ID латиницей; у одной темы или вопроса может быть не более одного медиа, при этом медиа темы и её вопросов могут сочетаться;
+- описание обязательно и должно содержательно объяснять материал; для фото оно станет alt-текстом;
+- создай только текстовые слоты: не создавай URL, пути к файлам или бинарные данные и не прикладывай медиафайлы;
+- пользователь позже импортирует шаблон в Tiqui Quiz и заполнит слоты: выберет локальные файлы для полностью автономной работы.
+${mediaExamples.join('\n\n')}` : '';
+
   generatedPrompt.value = `Создай учебный квиз на тему «${courseTopic}» для аудитории: ${audience.value.trim() || 'школьник'}. Сложность: ${difficulty.value}.
 
 Подготовь ${boundedNumber(lessons.value, 3)} темы, примерно по ${boundedNumber(questions.value, 5)} вопросов в каждой. Используй разные типы вопросов и равномерно распредели их по курсу.
 
-Создай готовый файл lesson.md и приложи его к ответу так, чтобы пользователь мог скачать файл. Внутри файла должен находиться только Markdown-документ без вводного текста и служебных комментариев. Он должен строго соответствовать формату Tiqui Quiz:
+Создай готовый файл lesson.md и приложи его к ответу так, чтобы пользователь мог скачать файл. Внутри файла должен находиться только текстовый шаблон без вводного текста и служебных комментариев. Он должен строго соответствовать формату Tiqui Quiz:
 
 # Название курса
 Иконка: один подходящий эмодзи
@@ -325,6 +382,7 @@ ID: короткий-уникальный-id-латиницей
 - Второй термин => Второе соответствие
 - Третий термин => Третье соответствие
 Объяснение: общий полезный факт
+${mediaInstructions}
 
 Требования:
 - у вопроса «Выбор» должен быть ровно один ответ [x] и не менее двух вариантов;
@@ -334,10 +392,12 @@ ID: короткий-уникальный-id-латиницей
 - не используй персональные данные;
 - перед ответом самостоятельно проверь структуру;
 - основной результат ответа — скачиваемый файл lesson.md;
-- если интерфейс не позволяет приложить файл, выведи содержимое целиком в одном блоке кода с языком markdown, не отображай его как обычный форматированный текст и не добавляй текст вне блока.`;
+- если интерфейс не позволяет приложить файл, выведи содержимое целиком в одном блоке кода с шаблоном, не отображай его как обычный форматированный текст и не добавляй текст вне блока.`;
   copyPromptStatus.textContent = '';
 }
 promptFields.forEach(field => field.addEventListener('input', updateGeneratedPrompt));
+[promptMediaEnabled, promptLessonMedia, promptQuestionMedia, ...promptMediaKinds.map(([, input]) => input)]
+  .forEach(field => field.addEventListener('change', updateGeneratedPrompt));
 document.querySelector('#openPromptBuilder').onclick = () => { updateGeneratedPrompt(); promptDialog.showModal(); document.querySelector('#promptTopic').focus() };
 document.querySelector('#closePromptBuilder').onclick = () => promptDialog.close();
 promptDialog.addEventListener('click', event => { if (event.target === promptDialog) promptDialog.close() });
