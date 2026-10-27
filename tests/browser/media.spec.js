@@ -144,12 +144,14 @@ test('shows cancellable busy state and prevents double project actions', async (
   await page.locator('#source').fill(mediaCourse);
   await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles(image);
   await page.locator('[data-slot-id="question-audio"] input[type=file]').setInputFiles(audio);
+  await expect(page.getByRole('button', { name: 'Скачать квиз для ученика' })).toBeEnabled();
   await page.evaluate(() => { crypto.subtle.digest = () => new Promise(() => {}); });
   await page.getByRole('button', { name: 'Сохранить проект' }).click();
   await expect(page.locator('#operationProgress')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Сохранить проект' })).toBeDisabled();
   await page.getByRole('button', { name: 'Отменить операцию' }).click();
   await expect(page.locator('#operationProgress')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Скачать квиз для ученика' })).toBeEnabled();
 });
 
 test('invalidates stale media controls synchronously when the template changes', async ({ page }) => {
@@ -255,11 +257,13 @@ test('preserves active source preview asset and URL after a late semantic projec
   });
   await page.locator('#preview .lesson-btn').click();
   await expect(page.locator('#preview img[alt="Обложка темы"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Скачать квиз для ученика' })).toBeDisabled();
   const before = await page.evaluate(() => ({
     source: document.querySelector('#source').value,
     preview: document.querySelector('#preview').textContent,
     media: document.querySelector('#mediaTotal').textContent,
-    url: document.querySelector('#preview img')?.src || null
+    url: document.querySelector('#preview img')?.src || null,
+    exportDisabled: document.querySelector('#exportHtml').disabled
   }));
   await page.locator('#projectInput').setInputFiles({ name: 'candidate.tiqui', mimeType: 'application/zip', buffer: Buffer.from('decoded-by-seam') });
   await expect(page.locator('#projectStatus')).toContainText('медиа повреждено');
@@ -268,8 +272,10 @@ test('preserves active source preview asset and URL after a late semantic projec
     preview: document.querySelector('#preview').textContent,
     media: document.querySelector('#mediaTotal').textContent,
     url: document.querySelector('#preview img')?.src || null,
+    exportDisabled: document.querySelector('#exportHtml').disabled,
     revoked: window.__revokedMediaUrls
   }))).toEqual({ ...before, revoked: [] });
+  await expect(page.getByRole('button', { name: 'Скачать квиз для ученика' })).toBeDisabled();
 });
 
 test('late canceled operation cannot commit or hide a newer operation', async ({ page }) => {

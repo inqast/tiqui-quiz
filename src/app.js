@@ -105,6 +105,11 @@ function owners(course) {
 }
 const assets = () => registry.exportManifest().value || [];
 const readiness = () => lastCourse ? registry.validate(lastCourse) : { ok: false, errors: [] };
+
+function refreshExportAvailability() {
+  const parsed = parseDocument(source.value);
+  exportButton.disabled = Boolean(activeOperation) || parsed.errors.length > 0 || !parsed.course || !registry.validate(parsed.course).ok;
+}
 function destroyPreview() { preview.__tiquiPlayer?.destroy?.(); preview.innerHTML = '' }
 function replaceRegistry(next) { destroyPreview(); registry.dispose(); registry = next }
 function renderPreview() {
@@ -215,6 +220,7 @@ function finishOperation(controller) {
   activeOperation = null;
   operationProgress.hidden = true;
   document.querySelectorAll('#dropZone button, #dropZone input').forEach(control => { control.disabled = false });
+  refreshExportAvailability();
 }
 document.querySelector('#cancelOperation').onclick = () => { const controller = activeOperation; controller?.abort(); if (controller) finishOperation(controller) };
 async function runOperation(label, task, success) {
