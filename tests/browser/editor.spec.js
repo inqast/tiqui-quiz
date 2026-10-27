@@ -257,6 +257,7 @@ test('loads a Markdown file and blocks export for invalid content', async ({ pag
 
 test('shows option feedback only after checking the answer', async ({ page }) => {
   await page.locator('#fileInput').setInputFiles(fixture);
+  await expect(page.locator('#source')).toBeEnabled();
   await page.locator('#preview .lesson-btn').click();
   await page.getByRole('button', { name: /Бета/ }).click();
 

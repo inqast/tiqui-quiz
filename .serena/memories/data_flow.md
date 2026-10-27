@@ -13,9 +13,11 @@
 
 ## Concurrency and cleanup
 
-- Long package operations use AbortSignal and a current-operation token. Late success/failure/cancellation cannot overwrite newer state.
+- Template import and package operations disable source/media mutation controls and use AbortSignal plus operation identity, source revision/text and registry identity checks. Late success/failure/cancellation cannot overwrite newer state or publish a stale download.
+- UI attachment allocates an unused canonical slot ID across current slots and registry, validates candidate source first, then commits source and asset synchronously.
+- The performance spike uses the production CoursePackage lifecycle with the old project, imported result, archive and student ZIP retained. The 500 MiB target failed RSS/responsiveness; the supported total is 250 MiB.
 - Replacing/removing/importing/disposal revokes obsolete object URLs. Registry replacement accounts for old asset size before total-limit validation.
-- Operations above 250 MiB ask for confirmation; the opt-in 500 MiB performance spike is not part of normal tests.
+- Operations above 125 MiB ask for confirmation; the opt-in 250 MiB performance spike is not part of normal tests.
 
 ## Prompt flow
 

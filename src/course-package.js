@@ -4,7 +4,7 @@ const PACKAGE_DEFAULT_LIMITS = Object.freeze({
   image: 15 * PACKAGE_MIB,
   audio: 50 * PACKAGE_MIB,
   video: 250 * PACKAGE_MIB,
-  total: 500 * PACKAGE_MIB,
+  total: 250 * PACKAGE_MIB,
   maxEntries: 1002,
   maxCompressionRatio: 100,
   metadataEntry: 2 * PACKAGE_MIB
@@ -48,7 +48,7 @@ function packageIsSafeArchivePath(name) {
   if (/^[a-zA-Z]:\//.test(name) || name.startsWith('/') || name.startsWith('\\')) return false;
   if (/[\\\u0000-\u001f\u007f\u2044\u2215\u29f8\uff0f\ufe68\uff3c\u202a-\u202e\u2066-\u2069]/u.test(name)) return false;
   const parts = name.split('/');
-  return parts.every(part => part && part !== '.' && part !== '..');
+  return parts.every(part => part && part !== '.' && part !== '..' && !/^(?:con|prn|aux|nul|clock\$|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part.normalize('NFKC')));
 }
 
 function packageMediaFormatMatches(kind, mimeType, filename) {
@@ -69,7 +69,7 @@ function packageValidateManifest(value) {
   const filenames = new Set();
   for (const item of value.media) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return packageFailure('invalid-manifest', 'Некорректная запись медиа.');
-    if (typeof item.slotId !== 'string' || !/^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/u.test(item.slotId) || item.slotId !== item.slotId.normalize('NFKC')) {
+    if (typeof item.slotId !== 'string' || !/^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/u.test(item.slotId) || item.slotId !== item.slotId.normalize('NFKC') || item.slotId.length > 60 || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(item.slotId)) {
       return packageFailure('invalid-manifest', 'Некорректный идентификатор медиаслота.');
     }
     if (typeof item.filename !== 'string' || !packageIsSafeArchivePath(item.filename)) {
@@ -115,6 +115,81 @@ function packageCollectCourseSlotIds(course) {
   return slotIds;
 }
 
+// Read only bounded ZIP metadata before streaming payloads. ZIP64, encryption and
+// compressed entries are outside the editable format produced by this application.
+async function packageReadZipDirectory(archive, limits, signal) {
+  const read = async (offset, length) => {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (offset < 0 || length < 0 || offset + length > archive.size) throw new Error('Truncated ZIP');
+    return new Uint8Array(await archive.slice(offset, offset + length).arrayBuffer());
+  };
+  const view = bytes => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const tailOffset = Math.max(0, archive.size - 65557);
+  const tail = await read(tailOffset, archive.size - tailOffset);
+  const tailView = view(tail);
+  let end = -1;
+  for (let i = tail.length - 22; i >= 0; i--) {
+    if (tailView.getUint32(i, true) === 0x06054b50 && i + 22 + tailView.getUint16(i + 20, true) === tail.length) { end = i; break; }
+  }
+  if (end < 0) throw new Error('Missing ZIP end record');
+  const count = tailView.getUint16(end + 10, true);
+  const directorySize = tailView.getUint32(end + 12, true);
+  const directoryOffset = tailView.getUint32(end + 16, true);
+  if (tailView.getUint16(end + 4, true) || tailView.getUint16(end + 6, true) ||
+      tailView.getUint16(end + 8, true) !== count || count === 65535 ||
+      count > (limits.maxEntries ?? 1002) || directoryOffset + directorySize !== tailOffset + end) {
+    throw new Error('Invalid ZIP directory');
+  }
+  const entries = new Map();
+  let position = directoryOffset, nextLocal = 0, total = 0;
+  for (let index = 0; index < count; index++) {
+    const header = view(await read(position, 46));
+    if (header.getUint32(0, true) !== 0x02014b50) throw new Error('Invalid central header');
+    const flags = header.getUint16(8, true), compression = header.getUint16(10, true);
+    const crc = header.getUint32(16, true), compressedSize = header.getUint32(20, true), size = header.getUint32(24, true);
+    const nameLength = header.getUint16(28, true), extraLength = header.getUint16(30, true), commentLength = header.getUint16(32, true);
+    const localOffset = header.getUint32(42, true);
+    const name = packageDecoder.decode(await read(position + 46, nameLength));
+    const normalized = name.normalize('NFC');
+    total += size;
+    if (flags & ~0x808 || compression !== 0 || compressedSize !== size || header.getUint16(34, true) ||
+        localOffset !== nextLocal || !packageIsSafeArchivePath(name) || entries.has(normalized) ||
+        size > (limits.maxEntrySize ?? Infinity) || total > (limits.maxTotalUncompressed ?? Infinity)) {
+      throw new Error('Unsafe ZIP entry');
+    }
+    const local = view(await read(localOffset, 30));
+    const localNameLength = local.getUint16(26, true), localExtraLength = local.getUint16(28, true);
+    if (local.getUint32(0, true) !== 0x04034b50 || local.getUint16(6, true) !== flags ||
+        local.getUint16(8, true) !== compression ||
+        packageDecoder.decode(await read(localOffset + 30, localNameLength)) !== name) throw new Error('ZIP headers disagree');
+    nextLocal = localOffset + 30 + localNameLength + localExtraLength + size;
+    if (flags & 8) {
+      const descriptor = view(await read(nextLocal, 16));
+      const signature = descriptor.getUint32(0, true) === 0x08074b50 ? 4 : 0;
+      if (descriptor.getUint32(signature, true) !== crc || descriptor.getUint32(signature + 4, true) !== size ||
+          descriptor.getUint32(signature + 8, true) !== size) throw new Error('Invalid ZIP descriptor');
+      nextLocal += signature + 12;
+    } else if (local.getUint32(14, true) !== crc || local.getUint32(18, true) !== size || local.getUint32(22, true) !== size) {
+      throw new Error('ZIP sizes or CRC disagree');
+    }
+    if (nextLocal > directoryOffset) throw new Error('ZIP entry overlaps directory');
+    entries.set(normalized, { name, crc, size });
+    position += 46 + nameLength + extraLength + commentLength;
+    if (position > directoryOffset + directorySize) throw new Error('Truncated ZIP directory');
+  }
+  if (position !== directoryOffset + directorySize || nextLocal !== directoryOffset) throw new Error('Incomplete ZIP directory');
+  return entries;
+}
+
+const packageCrcTable = Uint32Array.from({ length: 256 }, (_, value) => {
+  for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  return value >>> 0;
+});
+function packageUpdateCrc(crc, bytes) {
+  for (const byte of bytes) crc = packageCrcTable[(crc ^ byte) & 255] ^ (crc >>> 8);
+  return crc;
+}
+
 /** Adapt the bundled fflate streaming primitives to the CoursePackage ZIP port. */
 function createFflateCourseZipAdapter(fflate) {
   if (typeof fflate?.Zip !== 'function' || typeof fflate?.ZipPassThrough !== 'function' || typeof fflate?.Unzip !== 'function') {
@@ -150,7 +225,11 @@ function createFflateCourseZipAdapter(fflate) {
             if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
             const { done, value } = await reader.read();
             if (done) break;
-            output.push(value, false);
+            for (let offset = 0; offset < value.length; offset += PACKAGE_MIB) {
+              if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+              output.push(value.subarray(offset, offset + PACKAGE_MIB), false);
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
           }
           output.push(new Uint8Array(0), true);
         } finally {
@@ -170,9 +249,10 @@ function createFflateCourseZipAdapter(fflate) {
 
   const open = async function* (archive, options = {}) {
     if (!(archive instanceof Blob)) throw new TypeError('Archive must be a Blob');
+    const expectedEntries = await packageReadZipDirectory(archive, options.limits || {}, options.signal);
     const queue = [];
     let wake;
-    let finished = false;
+    let finished = false, stopped = false;
     let streamError;
     let entryCount = 0;
     let totalSize = 0;
@@ -190,11 +270,12 @@ function createFflateCourseZipAdapter(fflate) {
     const unzip = new fflate.Unzip(entry => {
       entryCount += 1;
       const normalized = entry.name.normalize('NFC');
+      const expected = expectedEntries.get(normalized);
       if (
         entryCount > (limits.maxEntries ?? Infinity) ||
         !packageIsSafeArchivePath(entry.name) ||
         normalizedPaths.has(normalized) ||
-        entry.compression !== 0
+        entry.compression !== 0 || !expected || expected.name !== entry.name
       ) {
         entry.terminate();
         enqueueError(new Error('Unsafe or unsupported ZIP entry'));
@@ -202,7 +283,7 @@ function createFflateCourseZipAdapter(fflate) {
       }
       normalizedPaths.add(normalized);
       const chunks = [];
-      let size = 0;
+      let size = 0, crc = -1;
       entry.ondata = (error, chunk, final) => {
         if (error) {
           enqueueError(error);
@@ -215,8 +296,13 @@ function createFflateCourseZipAdapter(fflate) {
           enqueueError(new Error('ZIP size limit exceeded'));
           return;
         }
+        crc = packageUpdateCrc(crc, chunk);
         chunks.push(chunk);
         if (final) {
+          if (size !== expected.size || ((crc ^ -1) >>> 0) !== expected.crc) {
+            enqueueError(new Error('ZIP payload size or CRC mismatch'));
+            return;
+          }
           queue.push({
             name: entry.name,
             blob: new Blob(chunks),
@@ -234,15 +320,23 @@ function createFflateCourseZipAdapter(fflate) {
       const reader = archive.stream().getReader();
       try {
         while (true) {
+          if (stopped) return;
           if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
           const { done, value } = await reader.read();
           if (done) break;
-          unzip.push(value, false);
-          if (streamError) throw streamError;
+          for (let offset = 0; offset < value.length; offset += PACKAGE_MIB) {
+            if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+            if (stopped) return;
+            unzip.push(value.subarray(offset, offset + PACKAGE_MIB), false);
+            if (streamError) throw streamError;
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
         }
         unzip.push(new Uint8Array(0), true);
         if (streamError) throw streamError;
+        if (entryCount !== expectedEntries.size) throw new Error('Incomplete ZIP entries');
       } finally {
+        if (stopped) await reader.cancel();
         reader.releaseLock();
       }
     })().catch(error => {
@@ -266,7 +360,8 @@ function createFflateCourseZipAdapter(fflate) {
       if (streamError) throw streamError;
       await feed;
     } finally {
-      if (!finished) unzip.terminate();
+      stopped = true;
+      await feed;
     }
   };
 
@@ -296,6 +391,7 @@ export function createCoursePackage(zipAdapter, options) {
   };
 
   const validateAssetsForExport = assets => {
+    if (assets.length > limits.maxEntries - 2) return packageFailure('entry-count-limit', 'В проекте слишком много медиафайлов.');
     let total = 0;
     for (const asset of assets) {
       if (!packageMediaFormatMatches(asset.kind, asset.mimeType, asset.filename)) return packageFailure('format-mismatch', 'Формат медиафайла не поддерживается.');
@@ -310,6 +406,8 @@ export function createCoursePackage(zipAdapter, options) {
     try {
       if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
       if (typeof source !== 'string') return packageFailure('invalid-source', 'Исходный шаблон проекта отсутствует.');
+      const sourceBytes = packageEncoder.encode(source);
+      if (sourceBytes.length > limits.metadataEntry) return packageFailure('entry-size-limit', 'Шаблон превышает допустимый размер.');
       const assetsResult = registryAssets(registry);
       if (!assetsResult.ok) return assetsResult;
       const assets = assetsResult.value;
@@ -330,9 +428,10 @@ export function createCoursePackage(zipAdapter, options) {
         });
       }
       const manifest = JSON.stringify({ formatVersion: 1, media }, null, 2) + '\n';
+      if (packageEncoder.encode(manifest).length > limits.metadataEntry) return packageFailure('entry-size-limit', 'Список медиа превышает допустимый размер.');
       const entries = [
         { name: 'project.json', blob: new Blob([packageEncoder.encode(manifest)], { type: 'application/json' }) },
-        { name: 'lesson.md', blob: new Blob([packageEncoder.encode(source)], { type: 'text/markdown' }) },
+        { name: 'lesson.md', blob: new Blob([sourceBytes], { type: 'text/markdown' }) },
         ...assets.map(asset => ({ name: `media/${asset.filename}`, blob: asset.blob, store: true }))
       ];
       return packageOk(await zipAdapter.create(entries, opts));
@@ -345,6 +444,8 @@ export function createCoursePackage(zipAdapter, options) {
     try {
       if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
       if (typeof indexHtml !== 'string') return packageFailure('invalid-runtime', 'HTML ученика отсутствует.');
+      const runtimeBytes = packageEncoder.encode(indexHtml);
+      if (runtimeBytes.length > limits.metadataEntry) return packageFailure('entry-size-limit', 'HTML ученика превышает допустимый размер.');
       const registryValidation = registry?.validate?.(course);
       if (!registryValidation?.ok) return registryValidation || packageFailure('invalid-registry', 'Не удалось проверить реестр медиа.');
       const assetsResult = registryAssets(registry);
@@ -354,7 +455,7 @@ export function createCoursePackage(zipAdapter, options) {
       const validation = validateAssetsForExport(referencedAssets);
       if (!validation.ok) return validation;
       const entries = [
-        { name: 'index.html', blob: new Blob([packageEncoder.encode(indexHtml)], { type: 'text/html' }) },
+        { name: 'index.html', blob: new Blob([runtimeBytes], { type: 'text/html' }) },
         ...referencedAssets.map(asset => ({ name: `media/${asset.filename}`, blob: asset.blob, store: true }))
       ];
       return packageOk(await zipAdapter.create(entries, opts));

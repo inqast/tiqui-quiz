@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { unzipSync } from 'fflate';
 
+import { createPlayableFixtures, expectPlayback } from './media-fixtures.js';
 const mediaCourse = `# Медиа курс
 
 Описание: Проверка медиа
@@ -155,9 +156,10 @@ ID: offline-media
 - [ ] Неверно
 `;
   await page.locator('#source').fill(course);
-  await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
-  await page.locator('[data-slot-id="question-audio"] input[type=file]').setInputFiles({ name: 'sound.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('mp3') });
-  await page.locator('[data-slot-id="question-video"] input[type=file]').setInputFiles({ name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('mp4') });
+  const fixtures = await createPlayableFixtures(page);
+  await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles(fixtures.image);
+  await page.locator('[data-slot-id="question-audio"] input[type=file]').setInputFiles(fixtures.audio);
+  await page.locator('[data-slot-id="question-video"] input[type=file]').setInputFiles(fixtures.video);
 
   const projectDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Сохранить проект' }).click();
@@ -188,12 +190,15 @@ ID: offline-media
   await page.goto(`file://${join(outputDir, 'index.html')}`);
   await page.locator('.lesson-btn').click();
   await expect(page.locator('img[alt="Доступная обложка"]')).toBeVisible();
+  await expect.poll(() => page.locator('img[alt="Доступная обложка"]').evaluate(image => [image.naturalWidth, image.naturalHeight])).toEqual([32, 24]);
   await page.getByRole('button', { name: 'Перейти к вопросам' }).click();
   await expect(page.locator('audio[aria-label="Аудио первого вопроса"]')).toBeAttached();
+  await expectPlayback(page.locator('audio[aria-label="Аудио первого вопроса"]'), expect);
   await page.getByRole('button', { name: /^\d+ Верно$/ }).click();
   await page.getByRole('button', { name: 'Проверить' }).click();
   await page.getByRole('button', { name: 'Дальше' }).click();
   await expect(page.locator('video[aria-label="Видео второго вопроса"]')).toBeAttached();
+  await expectPlayback(page.locator('video[aria-label="Видео второго вопроса"]'), expect);
   await page.getByRole('button', { name: /^\d+ Верно$/ }).click();
   await page.getByRole('button', { name: 'Проверить' }).click();
   await page.getByRole('button', { name: 'Дальше' }).click();

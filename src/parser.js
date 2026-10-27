@@ -43,6 +43,10 @@ export function parseDocument(source) {
       }
       current.kind = kind;
       current.id = slug(rawId);
+      if (/^(?:con|prn|aux|nul|clock\$|com[1-9]|lpt[1-9])$/i.test(rawId.normalize('NFKC')) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(current.id)) {
+        lineError(line, 'идентификатор медиа зарезервирован операционной системой');
+        current.invalid = true;
+      }
       return current;
     }
     if (current.descriptionSeen) {

@@ -10,7 +10,7 @@ const DEFAULT_LIMITS = Object.freeze({
   image: 15 * MiB,
   audio: 50 * MiB,
   video: 250 * MiB,
-  total: 500 * MiB
+  total: 250 * MiB
 });
 
 /** @type {Readonly<Record<MediaKind, Readonly<Record<string, { extensions: readonly string[], canonicalExtension: string }>>>>} */
@@ -56,7 +56,8 @@ function isCanonicalSlotId(value) {
     && value === value.normalize('NFKC')
     && value === value.toLocaleLowerCase('ru')
     && /^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/.test(value)
-    && value.length <= 60;
+    && value.length <= 60
+    && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(value);
 }
 
 /** @param {{ lessons?: Array<{ media?: MediaSlot, questions?: Array<{ media?: MediaSlot }> }> } | undefined} course */

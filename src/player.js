@@ -20,14 +20,15 @@ export function createPlayer(host, course, options = {}) {
     const figure = document.createElement('figure'); figure.className = `course-media ${className}`;
     let source = null;
     try { source = typeof options.resolveMedia === 'function' ? options.resolveMedia(slot) : null } catch { source = null }
-    if (typeof source !== 'string' || !source) { const fallback = document.createElement('div'); fallback.className = 'media-fallback'; fallback.textContent = 'Медиа недоступно. Можно продолжить без него.'; figure.append(fallback); return figure }
+    const caption = document.createElement('figcaption'); caption.textContent = slot.description;
+    figure.append(caption);
+    if (typeof source !== 'string' || !source) { const fallback = document.createElement('div'); fallback.className = 'media-fallback'; fallback.textContent = 'Медиа недоступно. Можно продолжить без него.'; figure.prepend(fallback); return figure }
     const element = document.createElement(slot.kind === 'image' ? 'img' : slot.kind);
     if (slot.kind === 'image') element.alt = slot.description;
     else { element.controls = true; element.preload = 'metadata'; element.setAttribute('aria-label', slot.description) }
     element.src = source;
     element.addEventListener('error', () => { element.remove(); if (!figure.querySelector('.media-fallback')) { const fallback = document.createElement('div'); fallback.className = 'media-fallback'; fallback.textContent = 'Медиа не удалось загрузить. Можно продолжить без него.'; figure.prepend(fallback) } }, { once: true });
-    const caption = document.createElement('figcaption'); caption.textContent = slot.description;
-    figure.append(element, caption); return figure;
+    figure.prepend(element); return figure;
   };
   function stars(count) { return `<span class="stars">${[0, 1, 2].map(i => `<span class="${i < count ? '' : 'off'}">★</span>`).join('')}</span>` }
   function home() { session = null; footer.hidden = true; const description = course.description ? `<div class="muted">${esc(course.description)}</div>` : ''; app.innerHTML = `<header class="home-head"><h1>${esc(course.icon)} ${esc(course.title)}</h1>${description}</header><div class="lessons"></div><div class="home-foot"></div>`; const list = app.querySelector('.lessons'); course.lessons.forEach(lesson => { const item = button('', 'lesson-btn'); item.innerHTML = `<span class="licon">${esc(lesson.icon)}</span><span class="ltext"><b>${esc(lesson.title)}</b><small>${lesson.questions.length} вопросов</small></span>${stars(storage.get(`stars_${lesson.id}`, 0))}`; item.onclick = () => start(lesson); list.append(item) }); const sound = button(soundOn ? '🔊 Звук включён' : '🔇 Звук выключен', 'small-btn'); sound.onclick = () => { soundOn = !soundOn; storage.set('sound', soundOn); home() }; app.querySelector('.home-foot').append(sound) }

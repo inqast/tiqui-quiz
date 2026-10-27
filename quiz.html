@@ -780,14 +780,15 @@
         const figure = document.createElement('figure'); figure.className = `course-media ${className}`;
         let source = null;
         try { source = typeof options.resolveMedia === 'function' ? options.resolveMedia(slot) : null } catch { source = null }
-        if (typeof source !== 'string' || !source) { const fallback = document.createElement('div'); fallback.className = 'media-fallback'; fallback.textContent = 'Медиа недоступно. Можно продолжить без него.'; figure.append(fallback); return figure }
+        const caption = document.createElement('figcaption'); caption.textContent = slot.description;
+        figure.append(caption);
+        if (typeof source !== 'string' || !source) { const fallback = document.createElement('div'); fallback.className = 'media-fallback'; fallback.textContent = 'Медиа недоступно. Можно продолжить без него.'; figure.prepend(fallback); return figure }
         const element = document.createElement(slot.kind === 'image' ? 'img' : slot.kind);
         if (slot.kind === 'image') element.alt = slot.description;
         else { element.controls = true; element.preload = 'metadata'; element.setAttribute('aria-label', slot.description) }
         element.src = source;
         element.addEventListener('error', () => { element.remove(); if (!figure.querySelector('.media-fallback')) { const fallback = document.createElement('div'); fallback.className = 'media-fallback'; fallback.textContent = 'Медиа не удалось загрузить. Можно продолжить без него.'; figure.prepend(fallback) } }, { once: true });
-        const caption = document.createElement('figcaption'); caption.textContent = slot.description;
-        figure.append(element, caption); return figure;
+        figure.prepend(element); return figure;
       };
       function stars(count) { return `<span class="stars">${[0, 1, 2].map(i => `<span class="${i < count ? '' : 'off'}">★</span>`).join('')}</span>` }
       function home() { session = null; footer.hidden = true; const description = course.description ? `<div class="muted">${esc(course.description)}</div>` : ''; app.innerHTML = `<header class="home-head"><h1>${esc(course.icon)} ${esc(course.title)}</h1>${description}</header><div class="lessons"></div><div class="home-foot"></div>`; const list = app.querySelector('.lessons'); course.lessons.forEach(lesson => { const item = button('', 'lesson-btn'); item.innerHTML = `<span class="licon">${esc(lesson.icon)}</span><span class="ltext"><b>${esc(lesson.title)}</b><small>${lesson.questions.length} вопросов</small></span>${stars(storage.get(`stars_${lesson.id}`, 0))}`; item.onclick = () => start(lesson); list.append(item) }); const sound = button(soundOn ? '🔊 Звук включён' : '🔇 Звук выключен', 'small-btn'); sound.onclick = () => { soundOn = !soundOn; storage.set('sound', soundOn); home() }; app.querySelector('.home-foot').append(sound) }
@@ -857,6 +858,10 @@
           }
           current.kind = kind;
           current.id = slug(rawId);
+          if (/^(?:con|prn|aux|nul|clock\$|com[1-9]|lpt[1-9])$/i.test(rawId.normalize('NFKC')) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(current.id)) {
+            lineError(line, 'идентификатор медиа зарезервирован операционной системой');
+            current.invalid = true;
+          }
           return current;
         }
         if (current.descriptionSeen) {
@@ -1044,7 +1049,7 @@
       image: 15 * MiB,
       audio: 50 * MiB,
       video: 250 * MiB,
-      total: 500 * MiB
+      total: 250 * MiB
     });
 
     /** @type {Readonly<Record<MediaKind, Readonly<Record<string, { extensions: readonly string[], canonicalExtension: string }>>>>} */
@@ -1090,7 +1095,8 @@
         && value === value.normalize('NFKC')
         && value === value.toLocaleLowerCase('ru')
         && /^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/.test(value)
-        && value.length <= 60;
+        && value.length <= 60
+        && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(value);
     }
 
     /** @param {{ lessons?: Array<{ media?: MediaSlot, questions?: Array<{ media?: MediaSlot }> }> } | undefined} course */
@@ -1315,7 +1321,7 @@
       image: 15 * PACKAGE_MIB,
       audio: 50 * PACKAGE_MIB,
       video: 250 * PACKAGE_MIB,
-      total: 500 * PACKAGE_MIB,
+      total: 250 * PACKAGE_MIB,
       maxEntries: 1002,
       maxCompressionRatio: 100,
       metadataEntry: 2 * PACKAGE_MIB
@@ -1359,7 +1365,7 @@
       if (/^[a-zA-Z]:\//.test(name) || name.startsWith('/') || name.startsWith('\\')) return false;
       if (/[\\\u0000-\u001f\u007f\u2044\u2215\u29f8\uff0f\ufe68\uff3c\u202a-\u202e\u2066-\u2069]/u.test(name)) return false;
       const parts = name.split('/');
-      return parts.every(part => part && part !== '.' && part !== '..');
+      return parts.every(part => part && part !== '.' && part !== '..' && !/^(?:con|prn|aux|nul|clock\$|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part.normalize('NFKC')));
     }
 
     function packageMediaFormatMatches(kind, mimeType, filename) {
@@ -1380,7 +1386,7 @@
       const filenames = new Set();
       for (const item of value.media) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) return packageFailure('invalid-manifest', 'Некорректная запись медиа.');
-        if (typeof item.slotId !== 'string' || !/^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/u.test(item.slotId) || item.slotId !== item.slotId.normalize('NFKC')) {
+        if (typeof item.slotId !== 'string' || !/^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/u.test(item.slotId) || item.slotId !== item.slotId.normalize('NFKC') || item.slotId.length > 60 || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(item.slotId)) {
           return packageFailure('invalid-manifest', 'Некорректный идентификатор медиаслота.');
         }
         if (typeof item.filename !== 'string' || !packageIsSafeArchivePath(item.filename)) {
@@ -1426,6 +1432,81 @@
       return slotIds;
     }
 
+    // Read only bounded ZIP metadata before streaming payloads. ZIP64, encryption and
+    // compressed entries are outside the editable format produced by this application.
+    async function packageReadZipDirectory(archive, limits, signal) {
+      const read = async (offset, length) => {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        if (offset < 0 || length < 0 || offset + length > archive.size) throw new Error('Truncated ZIP');
+        return new Uint8Array(await archive.slice(offset, offset + length).arrayBuffer());
+      };
+      const view = bytes => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const tailOffset = Math.max(0, archive.size - 65557);
+      const tail = await read(tailOffset, archive.size - tailOffset);
+      const tailView = view(tail);
+      let end = -1;
+      for (let i = tail.length - 22; i >= 0; i--) {
+        if (tailView.getUint32(i, true) === 0x06054b50 && i + 22 + tailView.getUint16(i + 20, true) === tail.length) { end = i; break; }
+      }
+      if (end < 0) throw new Error('Missing ZIP end record');
+      const count = tailView.getUint16(end + 10, true);
+      const directorySize = tailView.getUint32(end + 12, true);
+      const directoryOffset = tailView.getUint32(end + 16, true);
+      if (tailView.getUint16(end + 4, true) || tailView.getUint16(end + 6, true) ||
+          tailView.getUint16(end + 8, true) !== count || count === 65535 ||
+          count > (limits.maxEntries ?? 1002) || directoryOffset + directorySize !== tailOffset + end) {
+        throw new Error('Invalid ZIP directory');
+      }
+      const entries = new Map();
+      let position = directoryOffset, nextLocal = 0, total = 0;
+      for (let index = 0; index < count; index++) {
+        const header = view(await read(position, 46));
+        if (header.getUint32(0, true) !== 0x02014b50) throw new Error('Invalid central header');
+        const flags = header.getUint16(8, true), compression = header.getUint16(10, true);
+        const crc = header.getUint32(16, true), compressedSize = header.getUint32(20, true), size = header.getUint32(24, true);
+        const nameLength = header.getUint16(28, true), extraLength = header.getUint16(30, true), commentLength = header.getUint16(32, true);
+        const localOffset = header.getUint32(42, true);
+        const name = packageDecoder.decode(await read(position + 46, nameLength));
+        const normalized = name.normalize('NFC');
+        total += size;
+        if (flags & ~0x808 || compression !== 0 || compressedSize !== size || header.getUint16(34, true) ||
+            localOffset !== nextLocal || !packageIsSafeArchivePath(name) || entries.has(normalized) ||
+            size > (limits.maxEntrySize ?? Infinity) || total > (limits.maxTotalUncompressed ?? Infinity)) {
+          throw new Error('Unsafe ZIP entry');
+        }
+        const local = view(await read(localOffset, 30));
+        const localNameLength = local.getUint16(26, true), localExtraLength = local.getUint16(28, true);
+        if (local.getUint32(0, true) !== 0x04034b50 || local.getUint16(6, true) !== flags ||
+            local.getUint16(8, true) !== compression ||
+            packageDecoder.decode(await read(localOffset + 30, localNameLength)) !== name) throw new Error('ZIP headers disagree');
+        nextLocal = localOffset + 30 + localNameLength + localExtraLength + size;
+        if (flags & 8) {
+          const descriptor = view(await read(nextLocal, 16));
+          const signature = descriptor.getUint32(0, true) === 0x08074b50 ? 4 : 0;
+          if (descriptor.getUint32(signature, true) !== crc || descriptor.getUint32(signature + 4, true) !== size ||
+              descriptor.getUint32(signature + 8, true) !== size) throw new Error('Invalid ZIP descriptor');
+          nextLocal += signature + 12;
+        } else if (local.getUint32(14, true) !== crc || local.getUint32(18, true) !== size || local.getUint32(22, true) !== size) {
+          throw new Error('ZIP sizes or CRC disagree');
+        }
+        if (nextLocal > directoryOffset) throw new Error('ZIP entry overlaps directory');
+        entries.set(normalized, { name, crc, size });
+        position += 46 + nameLength + extraLength + commentLength;
+        if (position > directoryOffset + directorySize) throw new Error('Truncated ZIP directory');
+      }
+      if (position !== directoryOffset + directorySize || nextLocal !== directoryOffset) throw new Error('Incomplete ZIP directory');
+      return entries;
+    }
+
+    const packageCrcTable = Uint32Array.from({ length: 256 }, (_, value) => {
+      for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+      return value >>> 0;
+    });
+    function packageUpdateCrc(crc, bytes) {
+      for (const byte of bytes) crc = packageCrcTable[(crc ^ byte) & 255] ^ (crc >>> 8);
+      return crc;
+    }
+
     /** Adapt the bundled fflate streaming primitives to the CoursePackage ZIP port. */
     function createFflateCourseZipAdapter(fflate) {
       if (typeof fflate?.Zip !== 'function' || typeof fflate?.ZipPassThrough !== 'function' || typeof fflate?.Unzip !== 'function') {
@@ -1461,7 +1542,11 @@
                 if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
                 const { done, value } = await reader.read();
                 if (done) break;
-                output.push(value, false);
+                for (let offset = 0; offset < value.length; offset += PACKAGE_MIB) {
+                  if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+                  output.push(value.subarray(offset, offset + PACKAGE_MIB), false);
+                  await new Promise(resolve => setTimeout(resolve, 0));
+                }
               }
               output.push(new Uint8Array(0), true);
             } finally {
@@ -1481,9 +1566,10 @@
 
       const open = async function* (archive, options = {}) {
         if (!(archive instanceof Blob)) throw new TypeError('Archive must be a Blob');
+        const expectedEntries = await packageReadZipDirectory(archive, options.limits || {}, options.signal);
         const queue = [];
         let wake;
-        let finished = false;
+        let finished = false, stopped = false;
         let streamError;
         let entryCount = 0;
         let totalSize = 0;
@@ -1501,11 +1587,12 @@
         const unzip = new fflate.Unzip(entry => {
           entryCount += 1;
           const normalized = entry.name.normalize('NFC');
+          const expected = expectedEntries.get(normalized);
           if (
             entryCount > (limits.maxEntries ?? Infinity) ||
             !packageIsSafeArchivePath(entry.name) ||
             normalizedPaths.has(normalized) ||
-            entry.compression !== 0
+            entry.compression !== 0 || !expected || expected.name !== entry.name
           ) {
             entry.terminate();
             enqueueError(new Error('Unsafe or unsupported ZIP entry'));
@@ -1513,7 +1600,7 @@
           }
           normalizedPaths.add(normalized);
           const chunks = [];
-          let size = 0;
+          let size = 0, crc = -1;
           entry.ondata = (error, chunk, final) => {
             if (error) {
               enqueueError(error);
@@ -1526,8 +1613,13 @@
               enqueueError(new Error('ZIP size limit exceeded'));
               return;
             }
+            crc = packageUpdateCrc(crc, chunk);
             chunks.push(chunk);
             if (final) {
+              if (size !== expected.size || ((crc ^ -1) >>> 0) !== expected.crc) {
+                enqueueError(new Error('ZIP payload size or CRC mismatch'));
+                return;
+              }
               queue.push({
                 name: entry.name,
                 blob: new Blob(chunks),
@@ -1545,15 +1637,23 @@
           const reader = archive.stream().getReader();
           try {
             while (true) {
+              if (stopped) return;
               if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
               const { done, value } = await reader.read();
               if (done) break;
-              unzip.push(value, false);
-              if (streamError) throw streamError;
+              for (let offset = 0; offset < value.length; offset += PACKAGE_MIB) {
+                if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+                if (stopped) return;
+                unzip.push(value.subarray(offset, offset + PACKAGE_MIB), false);
+                if (streamError) throw streamError;
+                await new Promise(resolve => setTimeout(resolve, 0));
+              }
             }
             unzip.push(new Uint8Array(0), true);
             if (streamError) throw streamError;
+            if (entryCount !== expectedEntries.size) throw new Error('Incomplete ZIP entries');
           } finally {
+            if (stopped) await reader.cancel();
             reader.releaseLock();
           }
         })().catch(error => {
@@ -1577,7 +1677,8 @@
           if (streamError) throw streamError;
           await feed;
         } finally {
-          if (!finished) unzip.terminate();
+          stopped = true;
+          await feed;
         }
       };
 
@@ -1607,6 +1708,7 @@
       };
 
       const validateAssetsForExport = assets => {
+        if (assets.length > limits.maxEntries - 2) return packageFailure('entry-count-limit', 'В проекте слишком много медиафайлов.');
         let total = 0;
         for (const asset of assets) {
           if (!packageMediaFormatMatches(asset.kind, asset.mimeType, asset.filename)) return packageFailure('format-mismatch', 'Формат медиафайла не поддерживается.');
@@ -1621,6 +1723,8 @@
         try {
           if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
           if (typeof source !== 'string') return packageFailure('invalid-source', 'Исходный шаблон проекта отсутствует.');
+          const sourceBytes = packageEncoder.encode(source);
+          if (sourceBytes.length > limits.metadataEntry) return packageFailure('entry-size-limit', 'Шаблон превышает допустимый размер.');
           const assetsResult = registryAssets(registry);
           if (!assetsResult.ok) return assetsResult;
           const assets = assetsResult.value;
@@ -1641,9 +1745,10 @@
             });
           }
           const manifest = JSON.stringify({ formatVersion: 1, media }, null, 2) + '\n';
+          if (packageEncoder.encode(manifest).length > limits.metadataEntry) return packageFailure('entry-size-limit', 'Список медиа превышает допустимый размер.');
           const entries = [
             { name: 'project.json', blob: new Blob([packageEncoder.encode(manifest)], { type: 'application/json' }) },
-            { name: 'lesson.md', blob: new Blob([packageEncoder.encode(source)], { type: 'text/markdown' }) },
+            { name: 'lesson.md', blob: new Blob([sourceBytes], { type: 'text/markdown' }) },
             ...assets.map(asset => ({ name: `media/${asset.filename}`, blob: asset.blob, store: true }))
           ];
           return packageOk(await zipAdapter.create(entries, opts));
@@ -1656,6 +1761,8 @@
         try {
           if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
           if (typeof indexHtml !== 'string') return packageFailure('invalid-runtime', 'HTML ученика отсутствует.');
+          const runtimeBytes = packageEncoder.encode(indexHtml);
+          if (runtimeBytes.length > limits.metadataEntry) return packageFailure('entry-size-limit', 'HTML ученика превышает допустимый размер.');
           const registryValidation = registry?.validate?.(course);
           if (!registryValidation?.ok) return registryValidation || packageFailure('invalid-registry', 'Не удалось проверить реестр медиа.');
           const assetsResult = registryAssets(registry);
@@ -1665,7 +1772,7 @@
           const validation = validateAssetsForExport(referencedAssets);
           if (!validation.ok) return validation;
           const entries = [
-            { name: 'index.html', blob: new Blob([packageEncoder.encode(indexHtml)], { type: 'text/html' }) },
+            { name: 'index.html', blob: new Blob([runtimeBytes], { type: 'text/html' }) },
             ...referencedAssets.map(asset => ({ name: `media/${asset.filename}`, blob: asset.blob, store: true }))
           ];
           return packageOk(await zipAdapter.create(entries, opts));
@@ -1894,7 +2001,7 @@
     Объяснение: Левая и правая части пары разделяются символами =>.
     `;
     const mediaLimits = window.__TIQUI_TEST_LIMITS;
-    const confirmationThreshold = window.__TIQUI_CONFIRM_THRESHOLD ?? 250 * 1024 * 1024;
+    const confirmationThreshold = window.__TIQUI_CONFIRM_THRESHOLD ?? 125 * 1024 * 1024;
     const createRegistry = () => createMediaRegistry(mediaLimits ? { limits: mediaLimits } : undefined);
     let currentName = 'lesson-example.md', timer = null, lastCourse = null, lastOutline = [], registry = createRegistry(), activeOperation = null, pendingOwner = null, sourceRevision = 0;
     source.value = starter;
@@ -1922,7 +2029,7 @@
       if (lastCourse) createPlayer(preview, lastCourse, { preview: true, resolveMedia: slot => registry.createPreviewUrl(slot.id).value || null });
     }
     function currentOwner(expected, revision) {
-      if (revision !== sourceRevision) return null;
+      if (activeOperation || revision !== sourceRevision) return null;
       const parsed = parseDocument(source.value);
       if (parsed.errors.length) return null;
       const owner = owners(parsed.course).find(item => item.key === expected.key);
@@ -1934,7 +2041,9 @@
       if (!owner?.media || owner.media.id !== expected.media?.id || owner.media.kind !== expected.media?.kind) {
         return { ok: false, errors: [{ message: 'Шаблон изменился. Выберите медиаслот заново.' }] };
       }
-      return registry.attach(owner.media, file);
+      const result = registry.attach(owner.media, file);
+      if (result.ok) sourceRevision++;
+      return result;
     }
     function pruneUnreferencedAssets(course) {
       const referenced = new Set(owners(course).flatMap(owner => owner.media ? [owner.media.id] : []));
@@ -1942,6 +2051,7 @@
     }
 
     function renderOutline(valid) {
+      valid = valid && !activeOperation;
       const revision = sourceRevision;
       mediaTotal.textContent = humanBytes(assets().reduce((sum, asset) => sum + asset.size, 0));
       mediaPanelStatus.textContent = valid ? '' : 'Исправьте шаблон: медиаслоты временно доступны только для просмотра.';
@@ -1950,7 +2060,7 @@
         const box = document.createElement('section'); box.className = 'media-owner'; box.dataset.ownerKey = owner.key;
         const head = document.createElement('div'); head.className = 'media-owner-head';
         const title = document.createElement('strong'); title.textContent = owner.title;
-        const add = document.createElement('button'); add.className = 'btn secondary'; add.type = 'button'; add.textContent = owner.media ? 'Изменить медиа' : 'Добавить медиа'; add.disabled = !valid; add.onclick = () => openMediaDialog(owner, revision);
+        const add = document.createElement('button'); add.className = 'btn secondary'; add.type = 'button'; add.textContent = owner.media ? 'Заменить' : 'Добавить медиа'; add.disabled = !valid; add.onclick = () => openMediaDialog(owner, revision);
         head.append(title, add); box.append(head);
         if (owner.media) {
           const asset = registry.get(owner.media.id).value;
@@ -1985,25 +2095,32 @@
     }
     mediaKind.onchange = () => { mediaFile.accept = acceptFor(mediaKind.value) };
     document.querySelector('#confirmMedia').onclick = () => {
-      if (!pendingOwner || !lastCourse) return;
+      if (!pendingOwner || !lastCourse || activeOperation) return;
       const current = currentOwner(pendingOwner.owner, pendingOwner.revision);
       if (!current) { mediaDialogError.textContent = 'Шаблон изменился. Выберите медиаслот заново.'; return }
       const description = mediaDescription.value.trim(), file = mediaFile.files[0];
       if (!description) { mediaDialogError.textContent = 'Добавьте описание медиа.'; return }
       if (!file) { mediaDialogError.textContent = 'Выберите локальный файл.'; return }
-      const base = slug(current.title.replace(/^(Тема|Вопрос \d+):\s*/, '')) || 'media';
-      const slot = { id: current.media?.id || `${base}-media`, kind: mediaKind.value, description };
-      const result = registry.attach(slot, file);
+      const base = slug(current.title.replace(/^(Тема|Вопрос \d+):\s*/, '')).slice(0, 48).replace(/-$/, '');
+      const used = new Set([...owners(lastCourse).filter(owner => owner.media).map(owner => owner.media.id), ...assets().map(asset => asset.slotId)]);
+      let id = current.media?.id || `${base}-media`;
+      if (!current.media) for (let suffix = 2; used.has(id); suffix++) id = `${base}-media-${suffix}`;
+      const slot = { id, kind: mediaKind.value, description };
+      const candidate = upsertMediaBlock(source.value, current.anchor, slot);
+      const parsed = parseDocument(candidate);
+      if (parsed.errors.length) { mediaDialogError.textContent = parsed.errors.join(' '); return }
+      const candidateSlot = owners(parsed.course).find(owner => owner.key === current.key)?.media;
+      if (!candidateSlot || candidateSlot.id !== slot.id) { mediaDialogError.textContent = 'Не удалось обновить медиаслот.'; return }
+      const result = registry.attach(candidateSlot, file);
       if (!result.ok) { mediaDialogError.textContent = result.errors.map(item => item.message).join(' '); return }
-      source.value = upsertMediaBlock(source.value, current.anchor, slot); sourceRevision++; pendingOwner = null; mediaDialog.close(); update();
+      source.value = candidate; sourceRevision++; pendingOwner = null; mediaDialog.close(); update();
     };
     source.addEventListener('input', () => { sourceRevision++; status.textContent = 'проверка…'; lastCourse = null; pendingOwner = null; if (mediaDialog.open) mediaDialog.close(); exportButton.disabled = true; renderOutline(false); clearTimeout(timer); timer = setTimeout(update, 250) });
     async function importTemplate(file) {
       if (!file) return;
-      try {
-        const text = await file.text();
-        replaceRegistry(createRegistry()); source.value = text; sourceRevision++; currentName = file.name.replace(/\\.md$/i, '') + '.md'; filename.textContent = currentName; update();
-      } catch { messages.innerHTML = '<p class="error">Не удалось прочитать файл.</p>' }
+      await runOperation('Импорт шаблона…', async () => ({ ok: true, value: await file.text() }), text => {
+        replaceRegistry(createRegistry()); source.value = text; sourceRevision++; currentName = file.name.replace(/\.md$/i, '') + '.md'; filename.textContent = currentName; update();
+      });
     }
     document.querySelector('#fileInput').addEventListener('change', event => importTemplate(event.target.files[0]));
     const dropZone = document.querySelector('#dropZone');
@@ -2012,44 +2129,54 @@
     dropZone.addEventListener('drop', event => importTemplate(event.dataTransfer.files[0]));
     document.querySelector('#saveMd').onclick = () => downloadText(source.value, currentName, 'text/markdown;charset=utf-8');
     document.querySelector('#clearEditor').onclick = () => {
-      if (!source.value || !window.confirm('Удалить весь текст из редактора? Это действие нельзя отменить.')) return;
+      if (activeOperation || !source.value || !window.confirm('Удалить весь текст из редактора? Это действие нельзя отменить.')) return;
       replaceRegistry(createRegistry()); source.value = ''; sourceRevision++; currentName = 'lesson.md'; filename.textContent = currentName; update(); source.focus();
     };
     function startOperation(label) {
       if (activeOperation) return null;
       const controller = new AbortController(); activeOperation = controller; operationLabel.textContent = label; operationBar.removeAttribute('value'); operationProgress.hidden = false;
-      document.querySelectorAll('#dropZone button, #dropZone input').forEach(control => { control.disabled = true }); return controller;
+      pendingOwner = null;
+      if (mediaDialog.open) mediaDialog.close();
+      source.disabled = true;
+      document.querySelectorAll('#clearEditor, #dropZone button, #dropZone input, #mediaOutline button, #mediaOutline input, #mediaDialog button, #mediaDialog input, #mediaDialog select').forEach(control => { control.disabled = true });
+      return controller;
     }
     function finishOperation(controller) {
       if (activeOperation !== controller) return;
       activeOperation = null;
       operationProgress.hidden = true;
-      document.querySelectorAll('#dropZone button, #dropZone input').forEach(control => { control.disabled = false });
+      source.disabled = false;
+      document.querySelectorAll('#clearEditor, #dropZone button, #dropZone input, #mediaDialog button, #mediaDialog input, #mediaDialog select').forEach(control => { control.disabled = false });
+      renderOutline(Boolean(lastCourse));
       refreshExportAvailability();
     }
     document.querySelector('#cancelOperation').onclick = () => { const controller = activeOperation; controller?.abort(); if (controller) finishOperation(controller) };
     async function runOperation(label, task, success) {
       const controller = startOperation(label); if (!controller) return;
+      const revision = sourceRevision, originalSource = source.value, originalRegistry = registry;
+      const isCurrent = () => activeOperation === controller && !controller.signal.aborted && sourceRevision === revision && source.value === originalSource && registry === originalRegistry;
       await new Promise(resolve => setTimeout(resolve, 0));
       try {
+        if (!isCurrent()) return;
         const result = await task(controller.signal, progress => {
           if (activeOperation === controller && progress.total) { operationBar.max = progress.total; operationBar.value = progress.completed }
         });
-        if (activeOperation !== controller || controller.signal.aborted) return;
+        if (!isCurrent()) return;
         if (result.ok) success(result.value);
         else document.querySelector('#projectStatus').textContent = `${label.startsWith('Откры') ? 'Не удалось открыть проект' : 'Операция не выполнена'}: ${result.errors?.[0]?.message || 'неизвестная ошибка'}`;
       } catch (error) {
-        if (activeOperation === controller && !controller.signal.aborted) document.querySelector('#projectStatus').textContent = `${label.startsWith('Откры') ? 'Не удалось открыть проект' : 'Операция не выполнена'}: ${error?.message || 'неизвестная ошибка'}`;
+        if (isCurrent()) document.querySelector('#projectStatus').textContent = `${label.startsWith('Откры') ? 'Не удалось открыть проект' : 'Операция не выполнена'}: ${error?.message || 'неизвестная ошибка'}`;
       } finally {
         finishOperation(controller);
       }
     }
     document.querySelector('#saveProject').onclick = () => {
+      if (activeOperation) return;
       const parsed = parseDocument(source.value);
       if (parsed.errors.length) return;
       pruneUnreferencedAssets(parsed.course);
       update();
-      runOperation('Сохранение проекта…', (signal, onProgress) => projectPackage.saveProject({ source: source.value, course: parsed.course, registry }, { signal, onProgress }), blob => downloadBlob(blob, `${parsed.course.id || slug(currentName.replace(/\\.md$/i, '')) || 'course'}.tiqui`));
+      runOperation('Сохранение проекта…', (signal, onProgress) => projectPackage.saveProject({ source: source.value, course: parsed.course, registry }, { signal, onProgress }), blob => downloadBlob(blob, `${parsed.course.id || slug(currentName.replace(/\.md$/i, '')) || 'course'}.tiqui`));
     };
     document.querySelector('#projectInput').addEventListener('change', event => {
       const file = event.target.files[0]; event.target.value = ''; if (!file) return;
@@ -2065,9 +2192,9 @@
       });
     });
     exportButton.onclick = () => {
-      if (!lastCourse || !readiness().ok) return;
+      if (activeOperation || !lastCourse || !readiness().ok) return;
       const total = assets().reduce((sum, asset) => sum + asset.size, 0);
-      if (total > confirmationThreshold && !window.confirm('Медиа весят больше 250 МБ. Подготовить большой архив для ученика?')) return;
+      if (total > confirmationThreshold && !window.confirm('Медиа весят больше 125 МБ. Подготовить большой архив для ученика?')) return;
       runOperation('Подготовка квиза…', (signal, onProgress) => {
         const paths = Object.fromEntries(assets().map(asset => [asset.slotId, `media/${asset.filename}`]));
         return projectPackage.exportStudentCourse({ course: lastCourse, registry, indexHtml: createStudentHtml(lastCourse, paths) }, { signal, onProgress });

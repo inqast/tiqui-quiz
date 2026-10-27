@@ -479,6 +479,10 @@ git add README.md tests/browser/player.spec.js tests/browser/media.spec.js tests
 git commit -m "docs: document offline media courses" -m "Co-Authored-By: O3 Agent Codex <noreply@ozon.ru>"
 ```
 
+## Final measured limit correction
+
+The final production lifecycle spike supersedes the library-only Task 1 measurement: 500 MiB failed the heartbeat/RSS budgets. Runtime total is now 250 MiB, with a warning above 125 MiB; per-kind limits remain 15/50/250 MiB. The opt-in test exercises CoursePackage save/open/student export, SHA-256 and retained old/new projects plus archive payloads. Metadata is limited to 2 MiB per file and both exports permit at most 1000 media assets. Real PNG, AAC/M4A and H.264/AAC MP4 are encoded at test runtime and verified for metadata/playback from extracted file URLs.
+
 ## Self-Review Result
 
 - Spec coverage: every goal, non-goal, package format, UI flow, prompt option, security requirement, browser scope and documentation item maps to Tasks 1–8.

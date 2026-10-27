@@ -55,14 +55,14 @@ test('accepts exact canonical slot IDs and rejects uppercase or non-NFKC variant
   }
 });
 
-test('enforces 15/50/250 MiB per-kind limits and the 500 MiB project total', () => {
+test('enforces 15/50/250 MiB per-kind limits and the 250 MiB project total', () => {
   const registry = createMediaRegistry();
 
   assert.equal(registry.attach(slot('image-ok', 'image'), file('ok.png', 'image/png', 15 * MiB)).ok, true);
   assert.equal(registry.attach(slot('image-big', 'image'), file('big.png', 'image/png', 15 * MiB + 1)).ok, false);
   assert.equal(registry.attach(slot('audio-ok', 'audio'), file('ok.mp3', 'audio/mpeg', 50 * MiB)).ok, true);
   assert.equal(registry.attach(slot('audio-big', 'audio'), file('big.mp3', 'audio/mpeg', 50 * MiB + 1)).ok, false);
-  assert.equal(registry.attach(slot('video-a', 'video'), file('a.mp4', 'video/mp4', 250 * MiB)).ok, true);
+  assert.equal(createMediaRegistry().attach(slot('video-a', 'video'), file('a.mp4', 'video/mp4', 250 * MiB)).ok, true);
   assert.equal(registry.attach(slot('video-b', 'video'), file('b.mp4', 'video/mp4', 185 * MiB)).ok, true);
   const totalOverflow = registry.attach(slot('overflow', 'image'), file('overflow.png', 'image/png', 1));
   assert.equal(totalOverflow.ok, false);
@@ -91,15 +91,15 @@ test('replaces atomically, preserves the old asset after rejection, and revokes 
 });
 
 
-test('accounts for replacement size instead of double-counting near the 500 MiB limit', () => {
+test('accounts for replacement size instead of double-counting near the 250 MiB limit', () => {
   const registry = createMediaRegistry();
-  assert.equal(registry.attach(slot('first', 'video'), file('first.mp4', 'video/mp4', 250 * MiB)).ok, true);
-  assert.equal(registry.attach(slot('second', 'video'), file('second.mp4', 'video/mp4', 250 * MiB)).ok, true);
-
-  const replacement = file('replacement.mp4', 'video/mp4', 250 * MiB);
+  assert.equal(registry.attach(slot('first', 'video'), file('first.mp4', 'video/mp4', 125 * MiB)).ok, true);
+  assert.equal(registry.attach(slot('second', 'video'), file('second.mp4', 'video/mp4', 125 * MiB)).ok, true);
+  const replacement = file('replacement.mp4', 'video/mp4', 125 * MiB);
   assert.equal(registry.attach(slot('first', 'video'), replacement).ok, true);
   assert.equal(registry.get('first').value.blob, replacement);
-  assert.equal(registry.validate({ lessons: [{ media: slot('first', 'video'), questions: [{ media: slot('second', 'video') }] }] }).value.totalSize, 500 * MiB);
+  assert.equal(registry.validate({ lessons: [{ media: slot('first', 'video'), questions: [{ media: slot('second', 'video') }] }] }).value.totalSize, 250 * MiB);
+  assert.equal(registry.attach(slot('overflow', 'image'), file('overflow.png', 'image/png', 1)).ok, false);
 });
 
 test('returns frozen snapshots and a deterministic manifest without exposing registry mutation', () => {

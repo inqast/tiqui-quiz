@@ -41,9 +41,10 @@
   - изображение — 15 МБ;
   - аудио — 50 МБ;
   - видео — 250 МБ;
-  - весь проект — целевой максимум 500 МБ, подтверждаемый performance spike;
-  - после 250 МБ показывать предупреждение перед экспортом;
-  - если spike не подтверждает стабильную упаковку 500 МБ, снизить лимит до измеренного безопасного значения до реализации UI и документации.
+  - весь проект — максимум 250 МиБ; полный production spike с удержанием старого проекта, SHA-256 и выходных payloads подтвердил этот предел;
+  - после 125 МиБ показывать предупреждение перед ученическим экспортом;
+  - прежний целевой максимум 500 МиБ не прошёл полный цикл по RSS/отклику и снижен; ZIP обработка уступает управление между порциями до 1 МиБ;
+  - до 1000 media assets; `lesson.md`, `project.json` и ученический `index.html` — до 2 МиБ каждый в UTF-8, с проверкой до создания архива.
 
 ## Approaches considered
 
@@ -111,7 +112,7 @@ Project
 - `Медиа` содержит `kind:slot-id`, а не путь к файлу.
 - `Описание медиа` обязательно и должно непосредственно относиться к объявленному слоту.
 - Для одной темы или вопроса допускается не более одного слота.
-- Slot ID проходит безопасную нормализацию и должен быть уникален в курсе.
+- Slot ID проходит безопасную нормализацию и должен быть уникален в курсе. Windows device stems (`con`, `prn`, `aux`, `nul`, `clock$`, `com1`–`com9`, `lpt1`–`lpt9`) запрещены. UI выбирает свободный ID по всем слотам и registry; candidate source валидируется до атомарного commit source/asset.
 - Parser возвращает понятные ошибки для неизвестного kind, orphan/repeated/empty media fields, повторного слота, отсутствующего описания и canonical-ID collision.
 - Slot ID нормализуется один раз parser-ом; registry и package используют каноническое значение без повторной нормализации.
 - Существующие шаблоны без media fields остаются валидными без миграции.
@@ -192,7 +193,7 @@ Type-specific answer renderers остаются неизменными.
 - Незаполненный слот показывает безопасную заглушку с описанием.
 - Проект можно сохранить с незаполненными слотами.
 - Student export блокируется, если parser errors не пусты либо `MediaRegistry.validate(course)` сообщает хотя бы об одном незаполненном/невалидном слоте.
-- После любого изменения шаблона или registry немедленно инвалидировать ранее подготовленный export state.
+- После любого изменения шаблона или registry немедленно инвалидировать ранее подготовленный export state. Импорт шаблона, открытие, сохранение и экспорт блокируют source/media controls и применяют результат только при совпадении operation identity, source revision и registry.
 
 ## Prompt builder
 
@@ -263,7 +264,7 @@ course-name.zip
 
 - Доверять только allowlist MIME + extension pair; не исполнять SVG, HTML или другие активные форматы.
 - Не использовать исходные filenames как archive paths без нормализации.
-- Запрещать absolute paths, `..`, backslashes и duplicate normalized paths при ZIP import.
+- Запрещать absolute paths, `..`, backslashes, reserved device names и duplicate normalized paths при ZIP import. Проверять EOCD, полный central directory, согласованность local headers/descriptors и CRC каждого entry до commit кандидата.
 - Ограничивать число entries, размер каждого entry, declared/uncompressed total и compression ratio для защиты от ZIP bombs.
 - Не вставлять description или filename в `innerHTML` без escaping; предпочтительно использовать `textContent` и DOM properties.
 - Освобождать созданные object URLs при замене asset, закрытии/открытии проекта и уничтожении preview.
@@ -298,9 +299,9 @@ course-name.zip
 
 ### Performance spike before implementation
 
-- Measure selected ZIP library with representative 250 МБ video and 500 МБ total project on supported desktop browsers.
+- Measure production CoursePackage save/open/student export with a full 250 МиБ video, transactional old project retained, SHA buffers and all returned/imported payloads retained; sample heartbeat, browser RSS and crashes. The earlier 500 МиБ target failed this complete scenario.
 - Record peak memory, generation time and whether asynchronous API keeps UI responsive.
-- If 500 МБ cannot be packaged reliably, revise the agreed total limit before implementation rather than silently weakening it.
+- Enforce the measured 250 МиБ total limit consistently in registry, package, UI, tests and documentation.
 
 ## Delivery and documentation
 
