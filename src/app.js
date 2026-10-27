@@ -15,7 +15,7 @@ const workspace = document.querySelector('.workspace'), editorTab = document.que
 const exportButton = document.querySelector('#exportHtml'), mediaOutline = document.querySelector('#mediaOutline'), mediaPanelStatus = document.querySelector('#mediaPanelStatus'), mediaTotal = document.querySelector('#mediaTotal');
 const operationProgress = document.querySelector('#operationProgress'), operationLabel = document.querySelector('#operationLabel'), operationBar = document.querySelector('#operationBar');
 const mediaDialog = document.querySelector('#mediaDialog'), mediaKind = document.querySelector('#mediaKind'), mediaDescription = document.querySelector('#mediaDescription'), mediaFile = document.querySelector('#mediaFile'), mediaDialogError = document.querySelector('#mediaDialogError');
-const projectPackage = createCoursePackage(fflate, { digest: (algorithm, bytes) => crypto.subtle.digest(algorithm, bytes) });
+const projectPackage = window.__TIQUI_PROJECT_PACKAGE || createCoursePackage(fflate, { digest: (algorithm, bytes) => crypto.subtle.digest(algorithm, bytes) });
 function setMobileView(view) {
   workspace.dataset.mobileView = view;
   editorTab.setAttribute('aria-selected', String(view === 'editor'));
@@ -95,7 +95,7 @@ let currentName = 'lesson-example.md', timer = null, lastCourse = null, lastOutl
 source.value = starter;
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])) }
 function humanBytes(bytes) { if (bytes < 1024) return `${bytes} Б`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} КБ`; return `${(bytes / 1024 ** 2).toFixed(1)} МБ` }
-function downloadBlob(blob, name) { const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000) }
+function downloadBlob(blob, name) { if (window.__TIQUI_DOWNLOAD) { window.__TIQUI_DOWNLOAD(blob, name); return } const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000) }
 function downloadText(content, name, type) { downloadBlob(new Blob([content], { type }), name) }
 function owners(course) {
   return course.lessons.flatMap((lesson, lessonIndex) => [
@@ -212,7 +212,9 @@ function startOperation(label) {
 }
 function finishOperation(controller) {
   if (activeOperation !== controller) return;
-  activeOperation = null; operationProgress.hidden = true; document.querySelectorAll('#dropZone button, #dropZone input').forEach(control => { control.disabled = false }); update();
+  activeOperation = null;
+  operationProgress.hidden = true;
+  document.querySelectorAll('#dropZone button, #dropZone input').forEach(control => { control.disabled = false });
 }
 document.querySelector('#cancelOperation').onclick = () => { const controller = activeOperation; controller?.abort(); if (controller) finishOperation(controller) };
 async function runOperation(label, task, success) {

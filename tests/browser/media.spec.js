@@ -227,3 +227,106 @@ test('prunes orphan media when saving so the project reopens', async ({ page }) 
   await expect(page.locator('#projectStatus')).not.toContainText('Не удалось открыть проект');
   await expect(page.locator('#mediaTotal')).toHaveText('0 Б');
 });
+
+test('preserves active source preview asset and URL after a late semantic project failure', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__TIQUI_PROJECT_PACKAGE = {
+      saveProject: async () => ({ ok: false, errors: [{ message: 'unused' }] }),
+      exportStudentCourse: async () => ({ ok: false, errors: [{ message: 'unused' }] }),
+      openProject: async () => ({
+        ok: true,
+        value: {
+          source: window.__candidateSource,
+          assets: [{ slotId: 'intro-image', filename: 'wrong.mp3', mimeType: 'audio/mpeg', blob: new Blob(['bad'], { type: 'audio/mpeg' }) }]
+        }
+      })
+    };
+    window.__revokedMediaUrls = [];
+    const revoke = URL.revokeObjectURL.bind(URL);
+    URL.revokeObjectURL = value => { window.__revokedMediaUrls.push(value); revoke(value); };
+  });
+  await page.reload();
+  await page.evaluate(candidate => { window.__candidateSource = candidate; }, mediaCourse);
+  await page.locator('#source').fill(mediaCourse);
+  await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles({
+    name: 'pixel.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+  });
+  await page.locator('#preview .lesson-btn').click();
+  await expect(page.locator('#preview img[alt="Обложка темы"]')).toBeVisible();
+  const before = await page.evaluate(() => ({
+    source: document.querySelector('#source').value,
+    preview: document.querySelector('#preview').textContent,
+    media: document.querySelector('#mediaTotal').textContent,
+    url: document.querySelector('#preview img')?.src || null
+  }));
+  await page.locator('#projectInput').setInputFiles({ name: 'candidate.tiqui', mimeType: 'application/zip', buffer: Buffer.from('decoded-by-seam') });
+  await expect(page.locator('#projectStatus')).toContainText('медиа повреждено');
+  expect(await page.evaluate(() => ({
+    source: document.querySelector('#source').value,
+    preview: document.querySelector('#preview').textContent,
+    media: document.querySelector('#mediaTotal').textContent,
+    url: document.querySelector('#preview img')?.src || null,
+    revoked: window.__revokedMediaUrls
+  }))).toEqual({ ...before, revoked: [] });
+});
+
+test('late canceled operation cannot commit or hide a newer operation', async ({ page }) => {
+  await page.addInitScript(() => {
+    const deferred = () => {
+      let resolve;
+      const promise = new Promise(done => { resolve = done; });
+      return { promise, resolve };
+    };
+    const oldOpen = deferred(), newerExport = deferred();
+    window.__operationTest = { oldOpen, newerExport, calls: { open: 0, export: 0 } };
+    window.__TIQUI_PROJECT_PACKAGE = {
+      saveProject: async () => ({ ok: false, errors: [{ message: 'unused' }] }),
+      openProject: () => { window.__operationTest.calls.open++; return oldOpen.promise; },
+      exportStudentCourse: () => { window.__operationTest.calls.export++; return newerExport.promise; }
+    };
+    window.__downloadCount = 0;
+    window.__TIQUI_DOWNLOAD = () => { window.__downloadCount++; };
+  });
+  await page.reload();
+  await page.locator('#projectInput').setInputFiles({ name: 'old.tiqui', mimeType: 'application/zip', buffer: Buffer.from('old') });
+  await expect(page.locator('#operationProgress')).toBeVisible();
+  await page.getByRole('button', { name: 'Отменить операцию' }).click();
+  await page.getByRole('button', { name: 'Скачать квиз для ученика' }).click();
+  await expect(page.locator('#operationProgress')).toContainText('Подготовка квиза');
+  await page.evaluate(() => window.__operationTest.oldOpen.resolve({ ok: true, value: { source: '# OLD', assets: [] } }));
+  await expect(page.locator('#operationProgress')).toBeVisible();
+  await expect(page.locator('#operationProgress')).toContainText('Подготовка квиза');
+  await expect(page.locator('#source')).not.toHaveValue('# OLD');
+  await page.evaluate(() => window.__operationTest.newerExport.resolve({ ok: true, value: new Blob(['zip']) }));
+  await expect(page.locator('#operationProgress')).toBeHidden();
+  expect(await page.evaluate(() => ({ calls: window.__operationTest.calls, downloads: window.__downloadCount }))).toEqual({
+    calls: { open: 1, export: 1 }, downloads: 1
+  });
+});
+
+test('rapid double export activates package and download once', async ({ page }) => {
+  await page.addInitScript(() => {
+    let resolve;
+    const promise = new Promise(done => { resolve = done; });
+    window.__doubleTest = { calls: 0, resolve };
+    window.__TIQUI_PROJECT_PACKAGE = {
+      saveProject: async () => ({ ok: false, errors: [{ message: 'unused' }] }),
+      openProject: async () => ({ ok: false, errors: [{ message: 'unused' }] }),
+      exportStudentCourse: () => { window.__doubleTest.calls++; return promise; }
+    };
+    window.__downloadCount = 0;
+    window.__TIQUI_DOWNLOAD = () => { window.__downloadCount++; };
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Скачать квиз для ученика' }).evaluate(button => {
+    button.click();
+    button.click();
+  });
+  await expect(page.locator('#operationProgress')).toBeVisible();
+  expect(await page.evaluate(() => window.__doubleTest.calls)).toBe(1);
+  await page.evaluate(() => window.__doubleTest.resolve({ ok: true, value: new Blob(['zip']) }));
+  await expect(page.locator('#operationProgress')).toBeHidden();
+  expect(await page.evaluate(() => window.__downloadCount)).toBe(1);
+});
