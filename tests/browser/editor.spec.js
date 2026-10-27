@@ -144,18 +144,47 @@ test('prompt validates media kinds and describes each placement permutation', as
   await expect(page.locator('#copyPrompt')).toBeDisabled();
 
   await page.locator('#promptMediaImage').check();
-  const cases = [
-    ['some', 'none', 'в некоторых темах', 'не добавляй медиа к вопросам'],
-    ['none', 'about-one', 'не добавляй вводное медиа к темам', 'примерно в одном вопросе на тему'],
-    ['every', 'several', 'в каждой теме', 'нескольких вопросах'],
-  ];
-  for (const [lesson, question, lessonText, questionText] of cases) {
-    await page.locator('#promptLessonMedia').selectOption(lesson);
-    await page.locator('#promptQuestionMedia').selectOption(question);
-    const prompt = await page.locator('#generatedPrompt').inputValue();
-    expect(prompt).toContain(lessonText);
-    expect(prompt).toContain(questionText);
-    expect(prompt).toContain('Медиа: image:');
+  const lessonCases = {
+    none: 'не добавляй вводное медиа к темам',
+    some: 'добавь вводное медиа в некоторых темах',
+    every: 'добавь вводное медиа в каждой теме',
+  };
+  const questionCases = {
+    none: 'не добавляй медиа к вопросам',
+    'about-one': 'добавь медиа примерно в одном вопросе на тему',
+    several: 'добавь медиа в нескольких вопросах каждой темы',
+  };
+
+  for (const [lesson, lessonText] of Object.entries(lessonCases)) {
+    for (const [question, questionText] of Object.entries(questionCases)) {
+      await page.locator('#promptLessonMedia').selectOption(lesson);
+      await page.locator('#promptQuestionMedia').selectOption(question);
+      const prompt = await page.locator('#generatedPrompt').inputValue();
+
+      expect(prompt).toContain(lessonText);
+      for (const [otherLesson, otherText] of Object.entries(lessonCases)) {
+        if (otherLesson !== lesson) expect(prompt).not.toContain(otherText);
+      }
+      expect(prompt).toContain(questionText);
+      for (const [otherQuestion, otherText] of Object.entries(questionCases)) {
+        if (otherQuestion !== question) expect(prompt).not.toContain(otherText);
+      }
+
+      if (lesson === 'none') {
+        expect(prompt).not.toContain('Пример для темы');
+        expect(prompt).not.toContain('Медиа: image:lesson-1-media');
+      } else {
+        expect(prompt).toContain('Пример для темы');
+        expect(prompt).toContain('Медиа: image:lesson-1-media');
+      }
+      if (question === 'none') {
+        expect(prompt).not.toContain('Пример для вопроса');
+        expect(prompt).not.toContain('Медиа: image:question-1-media');
+      } else {
+        expect(prompt).toContain('Пример для вопроса');
+        expect(prompt).toContain('Медиа: image:question-1-media');
+      }
+    }
   }
   await expect(page.locator('#promptMediaError')).toBeEmpty();
   await expect(page.locator('#copyPrompt')).toBeEnabled();
