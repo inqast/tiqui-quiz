@@ -96,6 +96,17 @@ async function packageToBlob(entry) {
   throw new TypeError('ZIP entry has no Blob data');
 }
 
+function packageCollectCourseSlotIds(course) {
+  const slotIds = new Set();
+  for (const lesson of course?.lessons || []) {
+    if (lesson?.media?.id) slotIds.add(lesson.media.id);
+    for (const question of lesson?.questions || []) {
+      if (question?.media?.id) slotIds.add(question.media.id);
+    }
+  }
+  return slotIds;
+}
+
 /** Adapt the bundled fflate streaming primitives to the CoursePackage ZIP port. */
 function createFflateCourseZipAdapter(fflate) {
   if (typeof fflate?.Zip !== 'function' || typeof fflate?.ZipPassThrough !== 'function' || typeof fflate?.Unzip !== 'function') {
@@ -299,13 +310,15 @@ export function createCoursePackage(zipAdapter, options) {
       const media = [];
       for (const asset of assets) {
         if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
+        const sha256 = await digestBlob(asset.blob);
+        if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
         media.push({
           slotId: asset.slotId,
           kind: asset.kind,
           filename: asset.filename,
           mimeType: asset.mimeType,
           size: asset.size,
-          sha256: await digestBlob(asset.blob)
+          sha256
         });
       }
       const manifest = JSON.stringify({ formatVersion: 1, media }, null, 2) + '\n';
@@ -328,11 +341,13 @@ export function createCoursePackage(zipAdapter, options) {
       if (!registryValidation?.ok) return registryValidation || packageFailure('invalid-registry', 'Не удалось проверить реестр медиа.');
       const assetsResult = registryAssets(registry);
       if (!assetsResult.ok) return assetsResult;
-      const validation = validateAssetsForExport(assetsResult.value);
+      const referencedSlotIds = packageCollectCourseSlotIds(course);
+      const referencedAssets = assetsResult.value.filter(asset => referencedSlotIds.has(asset.slotId));
+      const validation = validateAssetsForExport(referencedAssets);
       if (!validation.ok) return validation;
       const entries = [
         { name: 'index.html', blob: new Blob([packageEncoder.encode(indexHtml)], { type: 'text/html' }) },
-        ...assetsResult.value.map(asset => ({ name: `media/${asset.filename}`, blob: asset.blob, store: true }))
+        ...referencedAssets.map(asset => ({ name: `media/${asset.filename}`, blob: asset.blob, store: true }))
       ];
       return packageOk(await zipAdapter.create(entries, opts));
     } catch (error) {
@@ -408,7 +423,9 @@ export function createCoursePackage(zipAdapter, options) {
       if (item.size > limits[item.kind]) return packageFailure('asset-size-limit', 'Медиафайл превышает допустимый размер.');
       mediaTotal += item.size;
       if (!Number.isSafeInteger(mediaTotal) || mediaTotal > limits.total) return packageFailure('project-size-limit', 'Медиа проекта превышают допустимый размер.');
-      if (await digestBlob(entry.blob) !== item.sha256) return packageFailure('checksum-mismatch', 'Контрольная сумма медиафайла не совпадает.');
+      const sha256 = await digestBlob(entry.blob);
+      if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
+      if (sha256 !== item.sha256) return packageFailure('checksum-mismatch', 'Контрольная сумма медиафайла не совпадает.');
       assets.push(Object.freeze({
         slotId: item.slotId,
         kind: item.kind,
@@ -423,6 +440,7 @@ export function createCoursePackage(zipAdapter, options) {
         return packageFailure(name.startsWith('media/') ? 'orphan-media' : 'unsupported-entry', 'Архив содержит неподдерживаемый файл.');
       }
     }
+    if (opts.signal?.aborted) return packageFailure('aborted', 'Операция отменена.');
     return packageOk(Object.freeze({
       source,
       assets: Object.freeze(assets),

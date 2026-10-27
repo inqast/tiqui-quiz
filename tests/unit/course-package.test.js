@@ -191,6 +191,27 @@ test('refuses student export while a declared media slot is unresolved', async (
   assert.equal(result.errors[0].code, 'missing-asset');
 });
 
+test('student export excludes stale registry assets not referenced by the current course', async () => {
+  const zipAdapter = createMemoryZipAdapter();
+  const packageApi = createCoursePackage(zipAdapter, { digest });
+  const registry = createMediaRegistry();
+  const current = slot('current', 'image');
+  registry.attach(current, file('current.png', 'image/png', 'current'));
+  registry.attach(slot('stale', 'audio'), file('stale.mp3', 'audio/mpeg', 'stale'));
+
+  const result = await packageApi.exportStudentCourse({
+    course: courseWithMedia(current),
+    registry,
+    indexHtml: '<!doctype html>'
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual((await zipAdapter.inspect(result.value)).map(entry => entry.name), [
+    'index.html',
+    'media/current.png'
+  ]);
+});
+
 test('rejects unsafe and duplicate normalized archive paths transactionally', async t => {
   const zipAdapter = createMemoryZipAdapter();
   const packageApi = createCoursePackage(zipAdapter, { digest });
@@ -332,4 +353,32 @@ test('honors cancellation that arrives while hashing media', async () => {
   const result = await packageApi.saveProject({ source: '# Course', course: courseWithMedia(intro), registry }, { signal: controller.signal });
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'aborted');
+});
+
+test('openProject fails closed when cancellation arrives during the final media digest', async () => {
+  const zipAdapter = createMemoryZipAdapter();
+  const registry = createMediaRegistry();
+  const intro = slot('intro', 'image');
+  registry.attach(intro, file('photo.png', 'image/png', 'PNG bytes'));
+  const saved = await createCoursePackage(zipAdapter, { digest }).saveProject({
+    source: '# Course',
+    course: courseWithMedia(intro),
+    registry
+  });
+  assert.equal(saved.ok, true);
+
+  const controller = new AbortController();
+  const abortingDigest = async (...args) => {
+    const result = await digest(...args);
+    controller.abort();
+    return result;
+  };
+  const opened = await createCoursePackage(zipAdapter, { digest: abortingDigest }).openProject(
+    saved.value,
+    { signal: controller.signal }
+  );
+
+  assert.equal(opened.ok, false);
+  assert.equal(opened.errors[0].code, 'aborted');
+  assert.equal('value' in opened, false);
 });
