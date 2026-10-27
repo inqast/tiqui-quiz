@@ -11,14 +11,16 @@ const paths = {
   template: resolve(root, 'src', 'quiz.template.html'),
   player: resolve(root, 'src', 'player.js'),
   parser: resolve(root, 'src', 'parser.js'),
+  mediaRegistry: resolve(root, 'src', 'media-registry.js'),
   app: resolve(root, 'src', 'app.js'),
   output: resolve(root, 'quiz.html'),
 };
 
-const [template, playerSource, parserSource, appSource] = await Promise.all([
+const [template, playerSource, parserSource, mediaRegistrySource, appSource] = await Promise.all([
   readFile(paths.template, 'utf8'),
   readFile(paths.player, 'utf8'),
   readFile(paths.parser, 'utf8'),
+  readFile(paths.mediaRegistry, 'utf8'),
   readFile(paths.app, 'utf8'),
 ]);
 
@@ -34,7 +36,7 @@ function indent(source) {
 }
 
 const zipLicense = (await readFile(resolve(zipRoot, 'LICENSE'), 'utf8')).trim();
-const projectBundle = [playerSource, parserSource, appSource]
+const projectBundle = [playerSource, parserSource, mediaRegistrySource, appSource]
   .map(removeModuleSyntax)
   .join('\n\n');
 const bundle = `/* fflate (MIT)\n${zipLicense}\n*/\n${zipSource}\n\n${projectBundle}`;
