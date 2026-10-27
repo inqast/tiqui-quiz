@@ -124,7 +124,11 @@ test('prompt generates optional media slots with placement frequency kinds and l
   expect(prompt).toContain('сразу после заголовка вопроса, перед его текстом');
   expect(prompt).toContain('Описание медиа: [обязательное содержательное описание]');
   expect(prompt).toContain('уникальный ID');
+  expect(prompt).toContain('размещай строки медиа только в блоке метаданных');
+  expect(prompt).toContain('у вопроса — сразу после заголовка');
+  expect(prompt).toContain('никогда не размещай медиа внутри или после «Подсказка» или «Объяснение»');
   expect(prompt).toContain('не создавай URL, пути к файлам или бинарные данные');
+  expect(prompt).toContain('не встраивай содержимое файлов как base64 или data: URI');
   expect(prompt).toContain('локальные файлы');
   expect(prompt).toContain('импортирует шаблон');
 });
