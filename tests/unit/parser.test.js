@@ -402,3 +402,130 @@ test('validates common question boundaries and preserves unsafe-looking text as 
     assert.equal(result.course.lessons[0].questions[0].text, text);
   });
 });
+
+test('parses lesson and question media slots with stable normalized IDs and heading anchors', () => {
+  const source = `# Курс
+
+## Тема
+Иконка: 🌌
+Описание: Описание темы
+ID: ignored-by-current-lesson-schema
+Медиа: video:  Вводное Видео
+Описание медиа: Орбиты планет
+
+### Выбор
+Описание медиа: Фотография Меркурия
+Медиа: image:Меркурий ФОТО
+Что изображено?
+- [x] Меркурий
+- [ ] Венера`;
+  const parsed = parseDocument(source);
+
+  assert.deepEqual(Array.from(parsed.errors), []);
+  assert.equal(parsed.course.lessons[0].line, 2);
+  assert.deepEqual(parsed.course.lessons[0].media, {
+    id: 'вводное-видео',
+    kind: 'video',
+    description: 'Орбиты планет'
+  });
+  assert.equal(parsed.course.lessons[0].questions[0].line, 9);
+  assert.deepEqual(parsed.course.lessons[0].questions[0].media, {
+    id: 'меркурий-фото',
+    kind: 'image',
+    description: 'Фотография Меркурия'
+  });
+});
+
+test('keeps media-free course objects free of media properties', () => {
+  const parsed = parseDocument(questionDocument('Ввод', 'Ответы: ответ'));
+
+  assert.deepEqual(Array.from(parsed.errors), []);
+  assert.equal(Object.hasOwn(parsed.course.lessons[0], 'media'), false);
+  assert.equal(Object.hasOwn(parsed.course.lessons[0].questions[0], 'media'), false);
+});
+
+test('rejects invalid media metadata', async t => {
+  const cases = [
+    ['unknown kind', 'Медиа: document:slot-id\nОписание медиа: Документ', /вид медиа.*image.*video.*audio/i],
+    ['empty media', 'Медиа:\nОписание медиа: Пустой слот', /поле «Медиа» не может быть пустым/i],
+    ['empty description', 'Медиа: image:slot-id\nОписание медиа:', /поле «Описание медиа» не может быть пустым/i],
+    ['orphan description', 'Описание медиа: Без слота', /Описание медиа.*без поля «Медиа»/i],
+    ['repeated media', 'Медиа: image:first\nМедиа: image:second\nОписание медиа: Два слота', /поле «Медиа» указано повторно/i],
+    ['repeated description', 'Медиа: image:slot-id\nОписание медиа: Первая\nОписание медиа: Вторая', /поле «Описание медиа» указано повторно/i],
+    ['missing description', 'Медиа: audio:slot-id', /для медиа.*укажите «Описание медиа»/i]
+  ];
+
+  for (const [name, metadata, expectedError] of cases) {
+    await t.test(name, () => {
+      const parsed = parseDocument(`# Курс
+
+## Тема
+${metadata}
+
+### Ввод
+Вопрос?
+Ответы: ответ`);
+      assert.match(parsed.errors.join('\n'), expectedError);
+      assert.equal(Object.hasOwn(parsed.course.lessons[0], 'media'), false);
+    });
+  }
+});
+
+test('rejects duplicate canonical media IDs across owners', () => {
+  const parsed = parseDocument(`# Курс
+
+## Тема
+Медиа: video:Общее Медиа
+Описание медиа: Введение
+
+### Ввод
+Медиа: audio:общее-медиа
+Описание медиа: Аудио
+Вопрос?
+Ответы: ответ`);
+
+  assert.match(parsed.errors.join('\n'), /идентификатор медиа «общее-медиа» уже используется/i);
+  assert.deepEqual(parsed.course.lessons[0].media, {
+    id: 'общее-медиа',
+    kind: 'video',
+    description: 'Введение'
+  });
+  assert.equal(Object.hasOwn(parsed.course.lessons[0].questions[0], 'media'), false);
+});
+
+test('accepts lesson media after existing metadata fields', () => {
+  const parsed = parseDocument(`# Курс
+
+## Тема
+Иконка: 🌌
+Описание: Текст темы
+ID: stable-topic
+Медиа: audio:intro
+Описание медиа: Вступление
+
+### Ввод
+Вопрос?
+Ответы: ответ`);
+
+  assert.deepEqual(Array.from(parsed.errors), []);
+  assert.deepEqual(parsed.course.lessons[0].media, {
+    id: 'intro',
+    kind: 'audio',
+    description: 'Вступление'
+  });
+});
+
+test('rejects question media fields after question text', () => {
+  const parsed = parseDocument(`# Курс
+
+## Тема
+
+### Ввод
+Вопрос?
+Медиа: image:late-image
+Описание медиа: Позднее изображение
+Ответы: ответ`);
+
+  assert.match(parsed.errors.join('\n'), /медиа вопроса.*сразу после заголовка вопроса/i);
+  assert.equal(Object.hasOwn(parsed.course.lessons[0].questions[0], 'media'), false);
+});

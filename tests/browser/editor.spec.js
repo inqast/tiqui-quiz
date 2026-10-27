@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { unzipSync } from 'fflate';
 
 const fixture = new URL('../fixtures/all-question-types.md', import.meta.url).pathname;
 
@@ -71,7 +73,8 @@ test('builds a local prompt and offers AI provider links', async ({ page, contex
   expect(prompt).toContain('2 темы, примерно по 4 вопросов');
   expect(prompt).toContain('### Пары');
   expect(prompt).toContain('готовый файл lesson.md');
-  expect(prompt).toContain('в одном блоке кода с языком markdown');
+  expect(prompt).toContain('в одном блоке кода с шаблоном');
+  expect(prompt.toLowerCase()).not.toContain('markdown');
   await expect(dialog).toContainText('не все провайдеры доступны в России');
   await expect(dialog).toContainText('Скачайте из ответа файл lesson.md');
 
@@ -91,6 +94,100 @@ test('builds a local prompt and offers AI provider links', async ({ page, contex
 
   await page.getByRole('button', { name: 'Закрыть' }).click();
   await expect(dialog).not.toBeVisible();
+});
+
+test('prompt generates optional media slots with placement frequency kinds and local import guidance', async ({ page }) => {
+  await page.getByRole('button', { name: 'Создать с помощью ИИ' }).click();
+
+  const mediaOptions = page.locator('#promptMediaOptions');
+  await expect(mediaOptions).toBeHidden();
+  const defaultPrompt = await page.locator('#generatedPrompt').inputValue();
+  expect(defaultPrompt).not.toContain('Медиа:');
+  expect(defaultPrompt).not.toContain('Описание медиа:');
+  expect(defaultPrompt).toContain('3 темы, примерно по 5 вопросов');
+  expect(defaultPrompt.toLowerCase()).not.toContain('markdown');
+
+  await page.locator('#promptIncludeMedia').check();
+  await expect(mediaOptions).toBeVisible();
+  await page.locator('#promptLessonMedia').selectOption('every');
+  await page.locator('#promptQuestionMedia').selectOption('several');
+  await page.locator('#promptMediaImage').uncheck();
+  await page.locator('#promptMediaAudio').check();
+  await page.locator('#promptMediaVideo').check();
+
+  const prompt = await page.locator('#generatedPrompt').inputValue();
+  expect(prompt).toContain('в каждой теме');
+  expect(prompt).toContain('нескольких вопросах');
+  expect(prompt).toContain('audio или video');
+  expect(prompt).toContain('Медиа: audio:lesson-1-media');
+  expect(prompt).toContain('Медиа: video:question-1-media');
+  expect(prompt).toContain('сразу после заголовка вопроса, перед его текстом');
+  expect(prompt).toContain('Описание медиа: [обязательное содержательное описание]');
+  expect(prompt).toContain('уникальный ID');
+  expect(prompt).toContain('размещай строки медиа только в блоке метаданных');
+  expect(prompt).toContain('у вопроса — сразу после заголовка');
+  expect(prompt).toContain('никогда не размещай медиа внутри или после «Подсказка» или «Объяснение»');
+  expect(prompt).toContain('не создавай URL, пути к файлам или бинарные данные');
+  expect(prompt).toContain('не встраивай содержимое файлов как base64 или data: URI');
+  expect(prompt).toContain('локальные файлы');
+  expect(prompt).toContain('импортирует шаблон');
+});
+
+test('prompt validates media kinds and describes each placement permutation', async ({ page }) => {
+  await page.getByRole('button', { name: 'Создать с помощью ИИ' }).click();
+  await page.locator('#promptIncludeMedia').check();
+
+  for (const id of ['#promptMediaImage', '#promptMediaAudio', '#promptMediaVideo']) {
+    await page.locator(id).uncheck();
+  }
+  await expect(page.locator('#promptMediaError')).toContainText('Выберите хотя бы один тип');
+  await expect(page.locator('#copyPrompt')).toBeDisabled();
+
+  await page.locator('#promptMediaImage').check();
+  const lessonCases = {
+    none: 'не добавляй вводное медиа к темам',
+    some: 'добавь вводное медиа в некоторых темах',
+    every: 'добавь вводное медиа в каждой теме',
+  };
+  const questionCases = {
+    none: 'не добавляй медиа к вопросам',
+    'about-one': 'добавь медиа примерно в одном вопросе на тему',
+    several: 'добавь медиа в нескольких вопросах каждой темы',
+  };
+
+  for (const [lesson, lessonText] of Object.entries(lessonCases)) {
+    for (const [question, questionText] of Object.entries(questionCases)) {
+      await page.locator('#promptLessonMedia').selectOption(lesson);
+      await page.locator('#promptQuestionMedia').selectOption(question);
+      const prompt = await page.locator('#generatedPrompt').inputValue();
+
+      expect(prompt).toContain(lessonText);
+      for (const [otherLesson, otherText] of Object.entries(lessonCases)) {
+        if (otherLesson !== lesson) expect(prompt).not.toContain(otherText);
+      }
+      expect(prompt).toContain(questionText);
+      for (const [otherQuestion, otherText] of Object.entries(questionCases)) {
+        if (otherQuestion !== question) expect(prompt).not.toContain(otherText);
+      }
+
+      if (lesson === 'none') {
+        expect(prompt).not.toContain('Пример для темы');
+        expect(prompt).not.toContain('Медиа: image:lesson-1-media');
+      } else {
+        expect(prompt).toContain('Пример для темы');
+        expect(prompt).toContain('Медиа: image:lesson-1-media');
+      }
+      if (question === 'none') {
+        expect(prompt).not.toContain('Пример для вопроса');
+        expect(prompt).not.toContain('Медиа: image:question-1-media');
+      } else {
+        expect(prompt).toContain('Пример для вопроса');
+        expect(prompt).toContain('Медиа: image:question-1-media');
+      }
+    }
+  }
+  await expect(page.locator('#promptMediaError')).toBeEmpty();
+  await expect(page.locator('#copyPrompt')).toBeEnabled();
 });
 
 test('updates validation and preview when course metadata is removed', async ({ page }) => {
@@ -160,6 +257,7 @@ test('loads a Markdown file and blocks export for invalid content', async ({ pag
 
 test('shows option feedback only after checking the answer', async ({ page }) => {
   await page.locator('#fileInput').setInputFiles(fixture);
+  await expect(page.locator('#source')).toBeEnabled();
   await page.locator('#preview .lesson-btn').click();
   await page.getByRole('button', { name: /Бета/ }).click();
 
@@ -173,9 +271,12 @@ test('exports a self-contained quiz that opens independently', async ({ page }, 
   const downloadPromise = page.waitForEvent('download');
   await page.locator('#exportHtml').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('демонстрационный-тест.html');
-  const filePath = testInfo.outputPath(download.suggestedFilename());
-  await download.saveAs(filePath);
+  expect(download.suggestedFilename()).toBe('демонстрационный-тест.zip');
+  const zipPath = testInfo.outputPath(download.suggestedFilename());
+  await download.saveAs(zipPath);
+  const entries = unzipSync(new Uint8Array(await (await import('node:fs/promises')).readFile(zipPath)));
+  const filePath = testInfo.outputPath('index.html');
+  await writeFile(filePath, entries['index.html']);
   await page.goto(pathToFileURL(filePath).href);
   await expect(page.getByRole('heading', { name: /Демонстрационный тест/ })).toBeVisible();
   await expect(page.locator('.lesson-btn')).toHaveCount(1);
