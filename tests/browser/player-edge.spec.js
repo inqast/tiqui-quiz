@@ -55,3 +55,37 @@ test('renders HTML-looking question content as inert text', async ({ page }) => 
   await expect(quiz.locator('.qtext img')).toHaveCount(0);
   expect(await page.evaluate(() => window.__tiquiXss)).toBeUndefined();
 });
+
+test('renders skippable lesson and question media without blocking answers', async ({ page }) => {
+  await page.evaluate(() => {
+    const host = document.querySelector('#preview');
+    const media = (id, kind, description) => ({ id, kind, description });
+    window.__player = createPlayer(host, {
+      id: 'media-course', title: 'Медиа', icon: '🎓', description: '',
+      lessons: [{ id: 'lesson', title: 'Тема', icon: '📘', media: media('intro', 'video', 'Вводное видео'), questions: [{ type: 'choice', text: 'Вопрос', media: media('question', 'image', '<img src=x onerror=alert(1)>'), options: [{ text: 'Да' }, { text: 'Нет' }], answer: 0 }] }]
+    }, { preview: true, resolveMedia: slot => slot.id === 'intro' ? 'data:video/mp4;base64,AAAA' : 'data:image/png;base64,AAAA' });
+  });
+  const quiz = page.locator('#preview');
+  await quiz.locator('.lesson-btn').click();
+  await expect(quiz.locator('.media-intro video')).toHaveAttribute('preload', 'metadata');
+  expect(await quiz.locator('.media-intro video').getAttribute('autoplay')).toBeNull();
+  await expect(quiz.getByRole('button', { name: 'Перейти к вопросам' })).toBeVisible();
+  await quiz.getByRole('button', { name: 'Перейти к вопросам' }).click();
+  await expect(quiz.locator('.question-media img')).toHaveAttribute('alt', '<img src=x onerror=alert(1)>');
+  await expect(quiz.locator('.question-media script')).toHaveCount(0);
+  await expect(quiz.getByRole('button', { name: 'Проверить' })).toBeDisabled();
+});
+
+test('fails closed for unresolved media and destroy removes keyboard ownership', async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const host = document.querySelector('#preview');
+    const course = { id: 'x', title: 'X', icon: '', lessons: [{ id: 'l', title: 'L', icon: '', media: { id: 'missing', kind: 'audio', description: 'Аудио' }, questions: [{ type: 'tf', text: 'Q', answer: true }] }] };
+    const player = createPlayer(host, course, { preview: true });
+    host.querySelector('.lesson-btn').click();
+    const fallback = host.querySelector('.media-fallback')?.textContent;
+    player.destroy();
+    return { fallback, handlerRemoved: host.onkeydown === null };
+  });
+  expect(result.fallback).toContain('Медиа недоступно');
+  expect(result.handlerRemoved).toBe(true);
+});
