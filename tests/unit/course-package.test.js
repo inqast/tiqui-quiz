@@ -255,6 +255,8 @@ test('rejects malformed manifests, unsupported entries and media integrity failu
     ['size mismatch', archive({ formatVersion: 1, media: [{ ...asset, size: png.length + 1 }] }), 'size-mismatch'],
     ['checksum mismatch', archive({ formatVersion: 1, media: [{ ...asset, sha256: '0'.repeat(64) }] }), 'checksum-mismatch'],
     ['MIME extension mismatch', archive({ formatVersion: 1, media: [{ ...asset, mimeType: 'audio/mpeg' }] }), 'format-mismatch'],
+    ['filename not derived from slot', archive({ formatVersion: 1, media: [{ ...asset, filename: 'other.png' }] }, [{ name: 'media/other.png', data: png }]), 'invalid-manifest'],
+    ['non-canonical extension spelling', archive({ formatVersion: 1, media: [{ ...asset, filename: 'intro.PNG' }] }, [{ name: 'media/intro.PNG', data: png }]), 'invalid-manifest'],
     ['too many entries', archive({ formatVersion: 1, media: [] }, [], [manifestEntry('x', ''), manifestEntry('y', '')]), 'entry-count-limit']
   ];
   for (const [name, input, code] of cases) {

@@ -90,6 +90,18 @@ test('replaces atomically, preserves the old asset after rejection, and revokes 
   assert.deepEqual(revoked, ['blob:old.mp4']);
 });
 
+
+test('accounts for replacement size instead of double-counting near the 500 MiB limit', () => {
+  const registry = createMediaRegistry();
+  assert.equal(registry.attach(slot('first', 'video'), file('first.mp4', 'video/mp4', 250 * MiB)).ok, true);
+  assert.equal(registry.attach(slot('second', 'video'), file('second.mp4', 'video/mp4', 250 * MiB)).ok, true);
+
+  const replacement = file('replacement.mp4', 'video/mp4', 250 * MiB);
+  assert.equal(registry.attach(slot('first', 'video'), replacement).ok, true);
+  assert.equal(registry.get('first').value.blob, replacement);
+  assert.equal(registry.validate({ lessons: [{ media: slot('first', 'video'), questions: [{ media: slot('second', 'video') }] }] }).value.totalSize, 500 * MiB);
+});
+
 test('returns frozen snapshots and a deterministic manifest without exposing registry mutation', () => {
   const registry = createMediaRegistry();
   registry.attach(slot('z-slot', 'image'), file('z.png', 'image/png', 3));

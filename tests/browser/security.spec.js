@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
 
 const payload = '</script><script>window.__tiquiXss=true</script><img src=x onerror="window.__tiquiXss=true">';
 
@@ -81,5 +81,52 @@ test('escapes hostile text in parser error messages', async ({ page }) => {
   await expect(page.locator('#messages')).toContainText('неизвестный тип вопроса');
   await expect(page.locator('#messages img')).toHaveCount(0);
   await expect(page.locator('#messages script')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__tiquiXss)).toBeUndefined();
+});
+
+
+test('rejects hostile project archive paths transactionally without rendering descriptions', async ({ page }) => {
+  const safeCourse = `# Безопасный курс
+
+Описание: Исходное состояние
+ID: safe-state
+
+## Тема
+
+Иконка: ✅
+
+### Выбор
+Вопрос?
+- [x] Да
+- [ ] Нет
+`;
+  await page.locator('#source').fill(safeCourse);
+  const manifest = JSON.stringify({
+    formatVersion: 1,
+    media: [{
+      slotId: 'intro',
+      kind: 'image',
+      filename: '../escape.png',
+      mimeType: 'image/png',
+      size: 3,
+      sha256: '0'.repeat(64)
+    }]
+  });
+  const archive = zipSync({
+    'project.json': new TextEncoder().encode(manifest),
+    'lesson.md': new TextEncoder().encode(`# ${payload}`),
+    'media/../escape.png': new Uint8Array([1, 2, 3])
+  });
+
+  await page.locator('#projectInput').setInputFiles({
+    name: 'hostile.tiqui',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(archive)
+  });
+
+  await expect(page.locator('#projectStatus')).toContainText('Не удалось открыть проект');
+  await expect(page.locator('#source')).toHaveValue(safeCourse);
+  await expect(page.locator('#preview')).toContainText('Безопасный курс');
+  await expect(page.locator('#preview script')).toHaveCount(0);
   expect(await page.evaluate(() => window.__tiquiXss)).toBeUndefined();
 });

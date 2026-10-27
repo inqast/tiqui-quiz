@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { unzipSync } from 'fflate';
 
 const mediaCourse = `# Медиа курс
 
@@ -42,10 +45,12 @@ test('attaches, previews, replaces and removes media through anchored slots', as
   await page.locator('#source').fill(mediaCourse);
   await expect(page.locator('[data-slot-id="intro-image"]')).toContainText('Обложка темы');
   await expect(page.locator('[data-slot-id="question-audio"]')).toContainText('Аудио вопроса');
+  await expect(page.locator('[data-slot-id="intro-image"] input[type=file]')).toHaveAccessibleName('Выбрать файл');
   await expect(page.getByRole('button', { name: 'Скачать квиз для ученика' })).toBeDisabled();
 
   await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles(image);
   await expect(page.locator('[data-slot-id="intro-image"]')).toContainText('intro-image.png');
+  await expect(page.locator('[data-slot-id="intro-image"] input[type=file]')).toHaveAccessibleName('Заменить');
   await expect(page.locator('#mediaTotal')).toContainText('5 Б');
   await page.locator('[data-slot-id="question-audio"] input[type=file]').setInputFiles(audio);
   await page.locator('#preview .lesson-btn').click();
@@ -120,6 +125,80 @@ test('saves and transactionally reopens a project while a failed open preserves 
   await expect(page.locator('#source')).toHaveValue(mediaCourse);
   await expect(page.locator('[data-slot-id="intro-image"]')).toContainText('intro-image.png');
   await expect(page.locator('#preview')).toContainText('Медиа курс');
+});
+
+
+test('saves, reopens and exports a fully offline course with lesson image and question audio/video', async ({ page }) => {
+  const course = `# Автономный курс
+
+Описание: Сквозная проверка
+ID: offline-media
+
+## Тема
+
+Иконка: 🎬
+Медиа: image:intro-image
+Описание медиа: Доступная обложка
+
+### Выбор
+Медиа: audio:question-audio
+Описание медиа: Аудио первого вопроса
+Первый вопрос?
+- [x] Верно
+- [ ] Неверно
+
+### Выбор
+Медиа: video:question-video
+Описание медиа: Видео второго вопроса
+Второй вопрос?
+- [x] Верно
+- [ ] Неверно
+`;
+  await page.locator('#source').fill(course);
+  await page.locator('[data-slot-id="intro-image"] input[type=file]').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+  await page.locator('[data-slot-id="question-audio"] input[type=file]').setInputFiles({ name: 'sound.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('mp3') });
+  await page.locator('[data-slot-id="question-video"] input[type=file]').setInputFiles({ name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('mp4') });
+
+  const projectDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Сохранить проект' }).click();
+  const project = await projectDownload;
+  const projectPath = test.info().outputPath('offline-media.tiqui');
+  await project.saveAs(projectPath);
+  await page.locator('#source').fill('# Временный шаблон');
+  await page.locator('#projectInput').setInputFiles(projectPath);
+  await expect(page.locator('#source')).toHaveValue(course);
+
+  const studentDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Скачать квиз для ученика' }).click();
+  const student = await studentDownload;
+  const zipPath = test.info().outputPath('offline-media.zip');
+  await student.saveAs(zipPath);
+  const entries = unzipSync(await readFile(zipPath));
+  const outputDir = test.info().outputPath('offline-media');
+  await mkdir(join(outputDir, 'media'), { recursive: true });
+  for (const [name, bytes] of Object.entries(entries)) {
+    await writeFile(join(outputDir, ...name.split('/')), bytes);
+  }
+
+  const externalRequests = [];
+  page.on('request', request => {
+    if (/^https?:/i.test(request.url())) externalRequests.push(request.url());
+  });
+  await page.addInitScript(() => { Math.random = () => 0.999999; });
+  await page.goto(`file://${join(outputDir, 'index.html')}`);
+  await page.locator('.lesson-btn').click();
+  await expect(page.locator('img[alt="Доступная обложка"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Перейти к вопросам' }).click();
+  await expect(page.locator('audio[aria-label="Аудио первого вопроса"]')).toBeAttached();
+  await page.getByRole('button', { name: /^\d+ Верно$/ }).click();
+  await page.getByRole('button', { name: 'Проверить' }).click();
+  await page.getByRole('button', { name: 'Дальше' }).click();
+  await expect(page.locator('video[aria-label="Видео второго вопроса"]')).toBeAttached();
+  await page.getByRole('button', { name: /^\d+ Верно$/ }).click();
+  await page.getByRole('button', { name: 'Проверить' }).click();
+  await page.getByRole('button', { name: 'Дальше' }).click();
+  await expect(page.getByRole('heading', { name: 'Тема пройдена!' })).toBeVisible();
+  expect(externalRequests).toEqual([]);
 });
 
 test('disposes the old registry when importing a template with the same slot IDs', async ({ page }) => {

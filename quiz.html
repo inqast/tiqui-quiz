@@ -1367,6 +1367,11 @@
       return Boolean(extensions?.includes(packageExtensionOf(filename)));
     }
 
+    function packageCanonicalFilename(item) {
+      const canonicalExtension = PACKAGE_MEDIA_FORMATS[item.kind]?.[item.mimeType]?.[0];
+      return canonicalExtension ? `${item.slotId}.${canonicalExtension}` : null;
+    }
+
     function packageValidateManifest(value) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return packageFailure('invalid-manifest', 'Некорректный manifest проекта.');
       if (value.formatVersion !== 1) return packageFailure('unsupported-version', 'Версия проекта не поддерживается.');
@@ -1378,11 +1383,14 @@
         if (typeof item.slotId !== 'string' || !/^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/u.test(item.slotId) || item.slotId !== item.slotId.normalize('NFKC')) {
           return packageFailure('invalid-manifest', 'Некорректный идентификатор медиаслота.');
         }
-        if (typeof item.filename !== 'string' || item.filename.includes('/') || !packageIsSafeArchivePath(item.filename)) {
+        if (typeof item.filename !== 'string' || !packageIsSafeArchivePath(item.filename)) {
           return packageFailure('invalid-manifest', 'Некорректное имя медиафайла.');
         }
         if (typeof item.mimeType !== 'string' || !packageMediaFormatMatches(item.kind, item.mimeType, item.filename)) {
           return packageFailure('format-mismatch', 'MIME-тип, вид медиа и расширение не совпадают.');
+        }
+        if (item.filename !== packageCanonicalFilename(item)) {
+          return packageFailure('invalid-manifest', 'Имя медиафайла не соответствует медиаслоту и формату.');
         }
         if (!Number.isSafeInteger(item.size) || item.size < 0 || typeof item.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(item.sha256)) {
           return packageFailure('invalid-manifest', 'Некорректные сведения о медиафайле.');
@@ -1950,7 +1958,7 @@
           const description = document.createElement('div'); description.textContent = owner.media.description;
           const row = document.createElement('div'); row.className = 'media-slot-row';
           const state = document.createElement('span'); state.textContent = asset ? `${asset.filename} · ${humanBytes(asset.size)}` : 'Файл не выбран';
-          const input = document.createElement('input'); input.type = 'file'; input.disabled = !valid; input.accept = acceptFor(owner.media.kind);
+          const input = document.createElement('input'); input.type = 'file'; input.disabled = !valid; input.accept = acceptFor(owner.media.kind); input.setAttribute('aria-label', asset ? 'Заменить' : 'Выбрать файл');
           const error = document.createElement('p'); error.className = 'media-error';
           input.onchange = () => { const result = attachToCurrentOwner(owner, revision, input.files[0]); error.textContent = result.ok ? '' : result.errors.map(item => item.message).join(' '); if (result.ok) update() };
           const remove = document.createElement('button'); remove.className = 'btn secondary'; remove.type = 'button'; remove.textContent = 'Удалить'; remove.disabled = !valid;

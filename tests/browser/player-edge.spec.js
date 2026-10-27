@@ -63,7 +63,7 @@ test('renders skippable lesson and question media without blocking answers', asy
     window.__player = createPlayer(host, {
       id: 'media-course', title: 'Медиа', icon: '🎓', description: '',
       lessons: [{ id: 'lesson', title: 'Тема', icon: '📘', media: media('intro', 'video', 'Вводное видео'), questions: [{ type: 'choice', text: 'Вопрос', media: media('question', 'image', '<img src=x onerror=alert(1)>'), options: [{ text: 'Да' }, { text: 'Нет' }], answer: 0 }] }]
-    }, { preview: true, resolveMedia: slot => slot.id === 'intro' ? 'data:video/mp4;base64,AAAA' : 'data:image/png;base64,AAAA' });
+    }, { preview: true, resolveMedia: slot => slot.id === 'intro' ? 'data:video/mp4;base64,AAAA' : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' });
   });
   const quiz = page.locator('#preview');
   await quiz.locator('.lesson-btn').click();

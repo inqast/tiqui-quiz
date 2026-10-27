@@ -56,6 +56,11 @@ function packageMediaFormatMatches(kind, mimeType, filename) {
   return Boolean(extensions?.includes(packageExtensionOf(filename)));
 }
 
+function packageCanonicalFilename(item) {
+  const canonicalExtension = PACKAGE_MEDIA_FORMATS[item.kind]?.[item.mimeType]?.[0];
+  return canonicalExtension ? `${item.slotId}.${canonicalExtension}` : null;
+}
+
 function packageValidateManifest(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return packageFailure('invalid-manifest', 'Некорректный manifest проекта.');
   if (value.formatVersion !== 1) return packageFailure('unsupported-version', 'Версия проекта не поддерживается.');
@@ -67,11 +72,14 @@ function packageValidateManifest(value) {
     if (typeof item.slotId !== 'string' || !/^[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)*$/u.test(item.slotId) || item.slotId !== item.slotId.normalize('NFKC')) {
       return packageFailure('invalid-manifest', 'Некорректный идентификатор медиаслота.');
     }
-    if (typeof item.filename !== 'string' || item.filename.includes('/') || !packageIsSafeArchivePath(item.filename)) {
+    if (typeof item.filename !== 'string' || !packageIsSafeArchivePath(item.filename)) {
       return packageFailure('invalid-manifest', 'Некорректное имя медиафайла.');
     }
     if (typeof item.mimeType !== 'string' || !packageMediaFormatMatches(item.kind, item.mimeType, item.filename)) {
       return packageFailure('format-mismatch', 'MIME-тип, вид медиа и расширение не совпадают.');
+    }
+    if (item.filename !== packageCanonicalFilename(item)) {
+      return packageFailure('invalid-manifest', 'Имя медиафайла не соответствует медиаслоту и формату.');
     }
     if (!Number.isSafeInteger(item.size) || item.size < 0 || typeof item.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(item.sha256)) {
       return packageFailure('invalid-manifest', 'Некорректные сведения о медиафайле.');

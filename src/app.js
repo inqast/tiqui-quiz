@@ -153,7 +153,7 @@ function renderOutline(valid) {
       const description = document.createElement('div'); description.textContent = owner.media.description;
       const row = document.createElement('div'); row.className = 'media-slot-row';
       const state = document.createElement('span'); state.textContent = asset ? `${asset.filename} · ${humanBytes(asset.size)}` : 'Файл не выбран';
-      const input = document.createElement('input'); input.type = 'file'; input.disabled = !valid; input.accept = acceptFor(owner.media.kind);
+      const input = document.createElement('input'); input.type = 'file'; input.disabled = !valid; input.accept = acceptFor(owner.media.kind); input.setAttribute('aria-label', asset ? 'Заменить' : 'Выбрать файл');
       const error = document.createElement('p'); error.className = 'media-error';
       input.onchange = () => { const result = attachToCurrentOwner(owner, revision, input.files[0]); error.textContent = result.ok ? '' : result.errors.map(item => item.message).join(' '); if (result.ok) update() };
       const remove = document.createElement('button'); remove.className = 'btn secondary'; remove.type = 'button'; remove.textContent = 'Удалить'; remove.disabled = !valid;
