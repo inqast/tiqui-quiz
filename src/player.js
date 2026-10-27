@@ -44,10 +44,10 @@ export function createPlayer(host, course, options = {}) {
     const wrap = document.createElement('div'); wrap.className = 'match'; const left = document.createElement('div'), right = document.createElement('div'); left.className = right.className = 'mcol'; wrap.append(left, right); const pairs = question.pairs.map((pair, index) => ({ ...pair, index })); let selected = null, matched = 0, hadError = false; const leftButtons = []; shuffle(pairs).forEach(pair => { const leftButton = button(pair.left, 'mbtn'); leftButton.dataset.index = pair.index; leftButton.onclick = () => { if (leftButton.classList.contains('done')) return; leftButtons.forEach(node => node.classList.remove('selected')); leftButton.classList.add('selected'); selected = pair.index }; leftButtons.push(leftButton); left.append(leftButton) }); shuffle(pairs).forEach(pair => { const rightButton = button(pair.right, 'mbtn'); rightButton.onclick = () => { if (selected === null || rightButton.classList.contains('done')) return; const leftButton = leftButtons.find(node => Number(node.dataset.index) === selected); if (selected === pair.index) { leftButton.classList.add('done'); rightButton.classList.add('done'); leftButton.classList.remove('selected'); selected = null; matched++; ready() } else { hadError = true; leftButton.classList.add('shake'); rightButton.classList.add('shake'); setTimeout(() => { leftButton.classList.remove('shake'); rightButton.classList.remove('shake') }, 320) } }; right.append(rightButton) }); return { element: wrap, ready: () => matched === pairs.length, check: () => ({ ok: true, hadError, feedback: question.explanation }) }
   }
   const keydownHandler = event => { if (!session || event.key !== 'Enter') return; if (document.activeElement?.tagName === 'INPUT') return; const nextButton = footerInner.querySelector('.big-btn:not(:disabled)'); if (nextButton) { event.preventDefault(); nextButton.click() } };
-  host.onkeydown = keydownHandler;
+  host.addEventListener('keydown', keydownHandler);
   home();
   let destroyed = false;
-  const api = { destroy() { if (destroyed) return; destroyed = true; if (host.onkeydown === keydownHandler) host.onkeydown = null; if (host.__tiquiPlayer === api) delete host.__tiquiPlayer; session = null } };
+  const api = { destroy() { if (destroyed) return; destroyed = true; host.removeEventListener('keydown', keydownHandler); if (host.__tiquiPlayer === api) delete host.__tiquiPlayer; session = null } };
   host.__tiquiPlayer = api;
   return api;
 }
